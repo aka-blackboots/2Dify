@@ -12,27 +12,20 @@ import {
     Euler
 } from "three";
 import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import {EffectComposer} from "three/examples/jsm/postprocessing/effectComposer.js";
+import {RenderPass} from "three/examples/jsm/postprocessing/renderPass.js";
+import {ShaderPass} from "three/examples/jsm/postprocessing/shaderPass.js";
+import {LuminosityShader} from "three/examples/jsm/shaders/LuminosityShader.js";
+import {SobelOperatorShader} from "three/examples/jsm/shaders/SobelOperatorShader.js";
 
 export class twoDify{
-    constructor(scene, camera, container)
+    constructor(scene, camera)
     {
+        this.lod = 2;
+        this.views = [];
+
         this.mainScene = scene;
         this.playerCamera = camera;
-
-        this.container = container;
-
-        // this.orthoScene = new Scene();
-        this.orthoCamera = this.createOrthoCamera();
-        this.orthoRenderer = this.createOrthoRenderer();
-
-        this.orthoLabelRenderer = new CSS2DRenderer();
-        this.orthoLabelRenderer.setSize( this.container.clientWidth, this.container.clientHeight );
-        this.orthoLabelRenderer.domElement.style.position = 'absolute';
-        this.orthoLabelRenderer.domElement.style.top = '0';
-        this.container.appendChild( this.orthoLabelRenderer.domElement );
-
-        this.player = this.createPlayer();
-        //this.rotatePlayer();
 
         this.startRendering();
     }
@@ -73,39 +66,52 @@ export class twoDify{
         console.log("Creating Container");
     }
 
-    addMarker(){
-        console.log("Adding marker");
+    addMarker(point, icon){
+        const labelDiv = document.createElement('div');
+        const htmlIcon = document.createElement("p");
+        htmlIcon.innerHTML = icon;
+        htmlIcon.style.width = "1.5rem";
+        htmlIcon.style.height = "1.5rem";
+        labelDiv.append(htmlIcon);
+        labelDiv.classList.add("example-label");
+        const labelObject = new CSS2DObject(labelDiv);
+        labelObject.position.set(point.x, point.y, point.z);
+        this.mainScene.add(labelObject);
     }
 
-    createOrthoCamera(){
+    createOrthoCamera(viewType){
         const camera = new OrthographicCamera(
-            -40,
-            40,
-            40,
-            -40,
+            0,
+            0,
+            0,
+            0,
             0.1,
             10000
         );
         //camera.position.set(0, 0, 2);
-        camera.rotation.x = 3 * Math.PI / 2;
 
-        // this factor is important for LOD
-        camera.position.set(0, 3, 0);
+        if(viewType === "top"){
+            camera.rotation.x = 3 * Math.PI / 2;
+            camera.position.set(0, 99, 0);
+        }
+        else if(viewType === "front"){
+            camera.position.set(0, 0, 99);
+        }
 
         camera.updateProjectionMatrix();
         return camera;
     }
 
-    updateLOD() {
-        camera.position.set(0, 20, 0);
+    updateLOD(value) {
+        this.lod = value;
     }
 
-    createOrthoRenderer(){
+    createOrthoRenderer(container){
         const renderer = new WebGLRenderer();
-        renderer.setSize( this.container.clientWidth, this.container.clientHeight );
+        renderer.setSize( container.clientWidth, container.clientHeight );
         renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
         renderer.setClearColor( 0x000000, 0 );
-        this.container.appendChild( renderer.domElement );
+        container.appendChild( renderer.domElement );
         renderer.clearColor('0xfffff');
         return renderer;
     }
@@ -145,61 +151,129 @@ export class twoDify{
     }
 
     startRendering(controls){
-        // this.orthoCamera.position.copy( this.mainCamera.position );
-        // this.orthoCamera.quaternion.copy( this.mainCamera.quaternion );
-        if(this.playerCamera.position.y > 0) {
-            this.player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
-        } else {
-            this.player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
-        }
+        // if(this.playerCamera.position.y > 0) {
+        //     this.player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
+        // } else {
+        //     this.player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
+        // }
 
-        this.player.element.style.transition = 'transform 0.3s ease'; // Adjust the transition duration if needed
+        this.views.forEach((view) => {
+            const { camera, renderer, labelRenderer, composer, player } = view;
 
-        if(document.getElementById("player-2dify")){
-            const deg = -MathUtils.radToDeg(controls.getAzimuthalAngle());
-            document.getElementById("player-2dify").style.transform = "rotate(" + deg + "deg)";
-        }
+            if (this.playerCamera.position.y > 0) {
+                camera.position.x = this.playerCamera.position.x;
+                camera.position.z = this.playerCamera.position.z;
+            } else {
+                camera.position.x = this.playerCamera.position.x;
+                camera.position.z = this.playerCamera.position.z;
+            }
 
-        this.orthoRenderer.render(this.mainScene, this.orthoCamera);
-        this.orthoLabelRenderer.render(this.mainScene, this.orthoCamera);
-        // console.log(this.playerCamera.position);
+            if (this.playerCamera.position.y > 0) {
+                player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
+            } else {
+                player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
+            }
+
+            player.element.style.transition = 'transform 0.3s ease';
+
+            if (document.getElementById("player-2dify")) {
+                const deg = -MathUtils.radToDeg(controls.getAzimuthalAngle());
+                document.getElementById("player-2dify").style.transform = "rotate(" + deg + "deg)";
+            }
+
+            renderer.render(this.mainScene, camera);
+            labelRenderer.render(this.mainScene, camera);
+            composer.render();
+        });
     }
 
     moveTheCameraToFit(){
-        let meshes = [];
-        const meshGroup = new Group();
-        this.mainScene.children.forEach((mesh) => {
-            if(mesh.type === "Mesh" || mesh.type === "Group"){
-                meshGroup.add(mesh.clone());
+        this.views.forEach((view) => {
+            const { camera } = view;
+
+            let meshes = [];
+            const meshGroup = new Group();
+
+            this.mainScene.children.forEach((mesh) => {
+                if (mesh.type === "Mesh" || mesh.type === "Group") {
+                    meshGroup.add(mesh.clone());
+                }
+            });
+
+            meshGroup.visible = false;
+            this.mainScene.add(meshGroup);
+
+            const boundingBox = new Box3().setFromObject(meshGroup);
+            const boxHelper = new Box3Helper(boundingBox, 0xff0000);
+
+            const center = boundingBox.getCenter(new Vector3());
+            const size = boundingBox.getSize(new Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const cameraDistance = maxDim / (2 * Math.tan(camera.fov * (Math.PI / 180) / 2));
+
+            camera.position.copy(center);
+
+            if (size.x > size.z) {
+                camera.left = -size.x / this.lod;
+                camera.right = size.x / this.lod;
+                camera.top = size.x / this.lod;
+                camera.bottom = -size.x / this.lod;
+            } else {
+                camera.left = -size.z / this.lod;
+                camera.right = size.z / this.lod;
+                camera.top = size.z / this.lod;
+                camera.bottom = -size.z / this.lod;
             }
+
+            camera.updateProjectionMatrix();
         });
-        meshGroup.visible = false;
-        this.mainScene.add(meshGroup);
-
-        const boundingBox = new Box3().setFromObject(meshGroup);
-        const boxHelper = new Box3Helper(boundingBox, 0xff0000);
-        this.mainScene.add(boxHelper);
-
-        const center = boundingBox.getCenter(new Vector3());
-        const size = boundingBox.getSize(new Vector3());
-
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const cameraDistance = maxDim / (2 * Math.tan(this.orthoCamera.fov * (Math.PI / 180) / 2));
-
-        this.orthoCamera.position.copy(center);
-
-        if(size.x > size.y){
-            this.orthoCamera.left = -size.x / 2;
-            this.orthoCamera.right = size.x / 2;
-            this.orthoCamera.top = size.x / 2;
-            this.orthoCamera.bottom = -size.x / 2;
-        } else{
-            this.orthoCamera.left = -size.y / 2;
-            this.orthoCamera.right = size.y / 2;
-            this.orthoCamera.top = size.y / 2;
-            this.orthoCamera.bottom = -size.y / 2;
-        }
-
-        this.orthoCamera.updateProjectionMatrix();
     }
+
+
+    createNewView(container, viewType) {
+        const newOrthoCamera = this.createOrthoCamera(viewType);
+        const newOrthoRenderer = this.createOrthoRenderer(container);
+        const newOrthoLabelRenderer = new CSS2DRenderer();
+        newOrthoLabelRenderer.setSize(container.clientWidth, container.clientHeight);
+        newOrthoLabelRenderer.domElement.style.position = 'absolute';
+        newOrthoLabelRenderer.domElement.style.top = '0';
+        container.appendChild(newOrthoLabelRenderer.domElement);
+
+        const newComposer = new EffectComposer(newOrthoRenderer);
+        const newRenderPass = new RenderPass(this.mainScene, newOrthoCamera);
+        newComposer.addPass(newRenderPass);
+
+        const newEffectGrayScale = new ShaderPass(LuminosityShader);
+        newComposer.addPass(newEffectGrayScale);
+
+        const newEffectSobel = new ShaderPass(SobelOperatorShader);
+        newEffectSobel.uniforms['resolution'].value.x = container.clientWidth * window.devicePixelRatio;
+        newEffectSobel.uniforms['resolution'].value.y = container.clientHeight * window.devicePixelRatio;
+        newComposer.addPass(newEffectSobel);
+
+        const newPlayer = this.createPlayer();
+        this.mainScene.add(newPlayer);
+
+        const newOrthoCameraPosition = new Vector3().copy(this.playerCamera.position);
+        newOrthoCamera.position.copy(newOrthoCameraPosition);
+
+        this.views.push({
+            id: container.id,
+            camera: newOrthoCamera,
+            renderer: newOrthoRenderer,
+            labelRenderer: newOrthoLabelRenderer,
+            composer: newComposer,
+            player: newPlayer
+        });
+
+        return {
+            camera: newOrthoCamera,
+            renderer: newOrthoRenderer,
+            labelRenderer: newOrthoLabelRenderer,
+            composer: newComposer,
+            player: newPlayer
+        };
+    }
+
 }

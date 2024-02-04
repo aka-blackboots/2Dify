@@ -69180,6 +69180,79 @@ class LineSegments extends Line {
 
 }
 
+class Clock {
+
+	constructor( autoStart = true ) {
+
+		this.autoStart = autoStart;
+
+		this.startTime = 0;
+		this.oldTime = 0;
+		this.elapsedTime = 0;
+
+		this.running = false;
+
+	}
+
+	start() {
+
+		this.startTime = now();
+
+		this.oldTime = this.startTime;
+		this.elapsedTime = 0;
+		this.running = true;
+
+	}
+
+	stop() {
+
+		this.getElapsedTime();
+		this.running = false;
+		this.autoStart = false;
+
+	}
+
+	getElapsedTime() {
+
+		this.getDelta();
+		return this.elapsedTime;
+
+	}
+
+	getDelta() {
+
+		let diff = 0;
+
+		if ( this.autoStart && ! this.running ) {
+
+			this.start();
+			return 0;
+
+		}
+
+		if ( this.running ) {
+
+			const newTime = now();
+
+			diff = ( newTime - this.oldTime ) / 1000;
+			this.oldTime = newTime;
+
+			this.elapsedTime += diff;
+
+		}
+
+		return diff;
+
+	}
+
+}
+
+function now() {
+
+	return ( typeof performance === 'undefined' ? Date : performance ).now(); // see #10732
+
+}
+
 class Box3Helper extends LineSegments {
 
 	constructor( box, color = 0xffff00 ) {
@@ -69458,26 +69531,831 @@ class CSS2DRenderer {
 
 }
 
+/**
+ * Full-screen textured quad shader
+ */
+
+const CopyShader = {
+
+	name: 'CopyShader',
+
+	uniforms: {
+
+		'tDiffuse': { value: null },
+		'opacity': { value: 1.0 }
+
+	},
+
+	vertexShader: /* glsl */`
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vUv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+
+	fragmentShader: /* glsl */`
+
+		uniform float opacity;
+
+		uniform sampler2D tDiffuse;
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vec4 texel = texture2D( tDiffuse, vUv );
+			gl_FragColor = opacity * texel;
+
+
+		}`
+
+};
+
+class Pass {
+
+	constructor() {
+
+		this.isPass = true;
+
+		// if set to true, the pass is processed by the composer
+		this.enabled = true;
+
+		// if set to true, the pass indicates to swap read and write buffer after rendering
+		this.needsSwap = true;
+
+		// if set to true, the pass clears its buffer before rendering
+		this.clear = false;
+
+		// if set to true, the result of the pass is rendered to screen. This is set automatically by EffectComposer.
+		this.renderToScreen = false;
+
+	}
+
+	setSize( /* width, height */ ) {}
+
+	render( /* renderer, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
+
+		console.error( 'THREE.Pass: .render() must be implemented in derived pass.' );
+
+	}
+
+	dispose() {}
+
+}
+
+// Helper for passes that need to fill the viewport with a single quad.
+
+const _camera = new OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+
+// https://github.com/mrdoob/three.js/pull/21358
+
+class FullscreenTriangleGeometry extends BufferGeometry {
+
+	constructor() {
+
+		super();
+
+		this.setAttribute( 'position', new Float32BufferAttribute( [ - 1, 3, 0, - 1, - 1, 0, 3, - 1, 0 ], 3 ) );
+		this.setAttribute( 'uv', new Float32BufferAttribute( [ 0, 2, 0, 0, 2, 0 ], 2 ) );
+
+	}
+
+}
+
+const _geometry = new FullscreenTriangleGeometry();
+
+class FullScreenQuad {
+
+	constructor( material ) {
+
+		this._mesh = new Mesh( _geometry, material );
+
+	}
+
+	dispose() {
+
+		this._mesh.geometry.dispose();
+
+	}
+
+	render( renderer ) {
+
+		renderer.render( this._mesh, _camera );
+
+	}
+
+	get material() {
+
+		return this._mesh.material;
+
+	}
+
+	set material( value ) {
+
+		this._mesh.material = value;
+
+	}
+
+}
+
+let ShaderPass$1 = class ShaderPass extends Pass {
+
+	constructor( shader, textureID ) {
+
+		super();
+
+		this.textureID = ( textureID !== undefined ) ? textureID : 'tDiffuse';
+
+		if ( shader instanceof ShaderMaterial ) {
+
+			this.uniforms = shader.uniforms;
+
+			this.material = shader;
+
+		} else if ( shader ) {
+
+			this.uniforms = UniformsUtils.clone( shader.uniforms );
+
+			this.material = new ShaderMaterial( {
+
+				name: ( shader.name !== undefined ) ? shader.name : 'unspecified',
+				defines: Object.assign( {}, shader.defines ),
+				uniforms: this.uniforms,
+				vertexShader: shader.vertexShader,
+				fragmentShader: shader.fragmentShader
+
+			} );
+
+		}
+
+		this.fsQuad = new FullScreenQuad( this.material );
+
+	}
+
+	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		if ( this.uniforms[ this.textureID ] ) {
+
+			this.uniforms[ this.textureID ].value = readBuffer.texture;
+
+		}
+
+		this.fsQuad.material = this.material;
+
+		if ( this.renderToScreen ) {
+
+			renderer.setRenderTarget( null );
+			this.fsQuad.render( renderer );
+
+		} else {
+
+			renderer.setRenderTarget( writeBuffer );
+			// TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+			if ( this.clear ) renderer.clear( renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil );
+			this.fsQuad.render( renderer );
+
+		}
+
+	}
+
+	dispose() {
+
+		this.material.dispose();
+
+		this.fsQuad.dispose();
+
+	}
+
+};
+
+class MaskPass extends Pass {
+
+	constructor( scene, camera ) {
+
+		super();
+
+		this.scene = scene;
+		this.camera = camera;
+
+		this.clear = true;
+		this.needsSwap = false;
+
+		this.inverse = false;
+
+	}
+
+	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		const context = renderer.getContext();
+		const state = renderer.state;
+
+		// don't update color or depth
+
+		state.buffers.color.setMask( false );
+		state.buffers.depth.setMask( false );
+
+		// lock buffers
+
+		state.buffers.color.setLocked( true );
+		state.buffers.depth.setLocked( true );
+
+		// set up stencil
+
+		let writeValue, clearValue;
+
+		if ( this.inverse ) {
+
+			writeValue = 0;
+			clearValue = 1;
+
+		} else {
+
+			writeValue = 1;
+			clearValue = 0;
+
+		}
+
+		state.buffers.stencil.setTest( true );
+		state.buffers.stencil.setOp( context.REPLACE, context.REPLACE, context.REPLACE );
+		state.buffers.stencil.setFunc( context.ALWAYS, writeValue, 0xffffffff );
+		state.buffers.stencil.setClear( clearValue );
+		state.buffers.stencil.setLocked( true );
+
+		// draw into the stencil buffer
+
+		renderer.setRenderTarget( readBuffer );
+		if ( this.clear ) renderer.clear();
+		renderer.render( this.scene, this.camera );
+
+		renderer.setRenderTarget( writeBuffer );
+		if ( this.clear ) renderer.clear();
+		renderer.render( this.scene, this.camera );
+
+		// unlock color and depth buffer and make them writable for subsequent rendering/clearing
+
+		state.buffers.color.setLocked( false );
+		state.buffers.depth.setLocked( false );
+
+		state.buffers.color.setMask( true );
+		state.buffers.depth.setMask( true );
+
+		// only render where stencil is set to 1
+
+		state.buffers.stencil.setLocked( false );
+		state.buffers.stencil.setFunc( context.EQUAL, 1, 0xffffffff ); // draw if == 1
+		state.buffers.stencil.setOp( context.KEEP, context.KEEP, context.KEEP );
+		state.buffers.stencil.setLocked( true );
+
+	}
+
+}
+
+class ClearMaskPass extends Pass {
+
+	constructor() {
+
+		super();
+
+		this.needsSwap = false;
+
+	}
+
+	render( renderer /*, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
+
+		renderer.state.buffers.stencil.setLocked( false );
+		renderer.state.buffers.stencil.setTest( false );
+
+	}
+
+}
+
+class EffectComposer {
+
+	constructor( renderer, renderTarget ) {
+
+		this.renderer = renderer;
+
+		this._pixelRatio = renderer.getPixelRatio();
+
+		if ( renderTarget === undefined ) {
+
+			const size = renderer.getSize( new Vector2() );
+			this._width = size.width;
+			this._height = size.height;
+
+			renderTarget = new WebGLRenderTarget( this._width * this._pixelRatio, this._height * this._pixelRatio, { type: HalfFloatType } );
+			renderTarget.texture.name = 'EffectComposer.rt1';
+
+		} else {
+
+			this._width = renderTarget.width;
+			this._height = renderTarget.height;
+
+		}
+
+		this.renderTarget1 = renderTarget;
+		this.renderTarget2 = renderTarget.clone();
+		this.renderTarget2.texture.name = 'EffectComposer.rt2';
+
+		this.writeBuffer = this.renderTarget1;
+		this.readBuffer = this.renderTarget2;
+
+		this.renderToScreen = true;
+
+		this.passes = [];
+
+		this.copyPass = new ShaderPass$1( CopyShader );
+		this.copyPass.material.blending = NoBlending;
+
+		this.clock = new Clock();
+
+	}
+
+	swapBuffers() {
+
+		const tmp = this.readBuffer;
+		this.readBuffer = this.writeBuffer;
+		this.writeBuffer = tmp;
+
+	}
+
+	addPass( pass ) {
+
+		this.passes.push( pass );
+		pass.setSize( this._width * this._pixelRatio, this._height * this._pixelRatio );
+
+	}
+
+	insertPass( pass, index ) {
+
+		this.passes.splice( index, 0, pass );
+		pass.setSize( this._width * this._pixelRatio, this._height * this._pixelRatio );
+
+	}
+
+	removePass( pass ) {
+
+		const index = this.passes.indexOf( pass );
+
+		if ( index !== - 1 ) {
+
+			this.passes.splice( index, 1 );
+
+		}
+
+	}
+
+	isLastEnabledPass( passIndex ) {
+
+		for ( let i = passIndex + 1; i < this.passes.length; i ++ ) {
+
+			if ( this.passes[ i ].enabled ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	}
+
+	render( deltaTime ) {
+
+		// deltaTime value is in seconds
+
+		if ( deltaTime === undefined ) {
+
+			deltaTime = this.clock.getDelta();
+
+		}
+
+		const currentRenderTarget = this.renderer.getRenderTarget();
+
+		let maskActive = false;
+
+		for ( let i = 0, il = this.passes.length; i < il; i ++ ) {
+
+			const pass = this.passes[ i ];
+
+			if ( pass.enabled === false ) continue;
+
+			pass.renderToScreen = ( this.renderToScreen && this.isLastEnabledPass( i ) );
+			pass.render( this.renderer, this.writeBuffer, this.readBuffer, deltaTime, maskActive );
+
+			if ( pass.needsSwap ) {
+
+				if ( maskActive ) {
+
+					const context = this.renderer.getContext();
+					const stencil = this.renderer.state.buffers.stencil;
+
+					//context.stencilFunc( context.NOTEQUAL, 1, 0xffffffff );
+					stencil.setFunc( context.NOTEQUAL, 1, 0xffffffff );
+
+					this.copyPass.render( this.renderer, this.writeBuffer, this.readBuffer, deltaTime );
+
+					//context.stencilFunc( context.EQUAL, 1, 0xffffffff );
+					stencil.setFunc( context.EQUAL, 1, 0xffffffff );
+
+				}
+
+				this.swapBuffers();
+
+			}
+
+			if ( MaskPass !== undefined ) {
+
+				if ( pass instanceof MaskPass ) {
+
+					maskActive = true;
+
+				} else if ( pass instanceof ClearMaskPass ) {
+
+					maskActive = false;
+
+				}
+
+			}
+
+		}
+
+		this.renderer.setRenderTarget( currentRenderTarget );
+
+	}
+
+	reset( renderTarget ) {
+
+		if ( renderTarget === undefined ) {
+
+			const size = this.renderer.getSize( new Vector2() );
+			this._pixelRatio = this.renderer.getPixelRatio();
+			this._width = size.width;
+			this._height = size.height;
+
+			renderTarget = this.renderTarget1.clone();
+			renderTarget.setSize( this._width * this._pixelRatio, this._height * this._pixelRatio );
+
+		}
+
+		this.renderTarget1.dispose();
+		this.renderTarget2.dispose();
+		this.renderTarget1 = renderTarget;
+		this.renderTarget2 = renderTarget.clone();
+
+		this.writeBuffer = this.renderTarget1;
+		this.readBuffer = this.renderTarget2;
+
+	}
+
+	setSize( width, height ) {
+
+		this._width = width;
+		this._height = height;
+
+		const effectiveWidth = this._width * this._pixelRatio;
+		const effectiveHeight = this._height * this._pixelRatio;
+
+		this.renderTarget1.setSize( effectiveWidth, effectiveHeight );
+		this.renderTarget2.setSize( effectiveWidth, effectiveHeight );
+
+		for ( let i = 0; i < this.passes.length; i ++ ) {
+
+			this.passes[ i ].setSize( effectiveWidth, effectiveHeight );
+
+		}
+
+	}
+
+	setPixelRatio( pixelRatio ) {
+
+		this._pixelRatio = pixelRatio;
+
+		this.setSize( this._width, this._height );
+
+	}
+
+	dispose() {
+
+		this.renderTarget1.dispose();
+		this.renderTarget2.dispose();
+
+		this.copyPass.dispose();
+
+	}
+
+}
+
+class RenderPass extends Pass {
+
+	constructor( scene, camera, overrideMaterial = null, clearColor = null, clearAlpha = null ) {
+
+		super();
+
+		this.scene = scene;
+		this.camera = camera;
+
+		this.overrideMaterial = overrideMaterial;
+
+		this.clearColor = clearColor;
+		this.clearAlpha = clearAlpha;
+
+		this.clear = true;
+		this.clearDepth = false;
+		this.needsSwap = false;
+		this._oldClearColor = new Color();
+
+	}
+
+	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		const oldAutoClear = renderer.autoClear;
+		renderer.autoClear = false;
+
+		let oldClearAlpha, oldOverrideMaterial;
+
+		if ( this.overrideMaterial !== null ) {
+
+			oldOverrideMaterial = this.scene.overrideMaterial;
+
+			this.scene.overrideMaterial = this.overrideMaterial;
+
+		}
+
+		if ( this.clearColor !== null ) {
+
+			renderer.getClearColor( this._oldClearColor );
+			renderer.setClearColor( this.clearColor );
+
+		}
+
+		if ( this.clearAlpha !== null ) {
+
+			oldClearAlpha = renderer.getClearAlpha();
+			renderer.setClearAlpha( this.clearAlpha );
+
+		}
+
+		if ( this.clearDepth == true ) {
+
+			renderer.clearDepth();
+
+		}
+
+		renderer.setRenderTarget( this.renderToScreen ? null : readBuffer );
+
+		if ( this.clear === true ) {
+
+			// TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+			renderer.clear( renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil );
+
+		}
+
+		renderer.render( this.scene, this.camera );
+
+		// restore
+
+		if ( this.clearColor !== null ) {
+
+			renderer.setClearColor( this._oldClearColor );
+
+		}
+
+		if ( this.clearAlpha !== null ) {
+
+			renderer.setClearAlpha( oldClearAlpha );
+
+		}
+
+		if ( this.overrideMaterial !== null ) {
+
+			this.scene.overrideMaterial = oldOverrideMaterial;
+
+		}
+
+		renderer.autoClear = oldAutoClear;
+
+	}
+
+}
+
+class ShaderPass extends Pass {
+
+	constructor( shader, textureID ) {
+
+		super();
+
+		this.textureID = ( textureID !== undefined ) ? textureID : 'tDiffuse';
+
+		if ( shader instanceof ShaderMaterial ) {
+
+			this.uniforms = shader.uniforms;
+
+			this.material = shader;
+
+		} else if ( shader ) {
+
+			this.uniforms = UniformsUtils.clone( shader.uniforms );
+
+			this.material = new ShaderMaterial( {
+
+				name: ( shader.name !== undefined ) ? shader.name : 'unspecified',
+				defines: Object.assign( {}, shader.defines ),
+				uniforms: this.uniforms,
+				vertexShader: shader.vertexShader,
+				fragmentShader: shader.fragmentShader
+
+			} );
+
+		}
+
+		this.fsQuad = new FullScreenQuad( this.material );
+
+	}
+
+	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		if ( this.uniforms[ this.textureID ] ) {
+
+			this.uniforms[ this.textureID ].value = readBuffer.texture;
+
+		}
+
+		this.fsQuad.material = this.material;
+
+		if ( this.renderToScreen ) {
+
+			renderer.setRenderTarget( null );
+			this.fsQuad.render( renderer );
+
+		} else {
+
+			renderer.setRenderTarget( writeBuffer );
+			// TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+			if ( this.clear ) renderer.clear( renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil );
+			this.fsQuad.render( renderer );
+
+		}
+
+	}
+
+	dispose() {
+
+		this.material.dispose();
+
+		this.fsQuad.dispose();
+
+	}
+
+}
+
+/**
+ * Luminosity
+ * http://en.wikipedia.org/wiki/Luminosity
+ */
+
+const LuminosityShader = {
+
+	name: 'LuminosityShader',
+
+	uniforms: {
+
+		'tDiffuse': { value: null }
+
+	},
+
+	vertexShader: /* glsl */`
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vUv = uv;
+
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+
+	fragmentShader: /* glsl */`
+
+		#include <common>
+
+		uniform sampler2D tDiffuse;
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vec4 texel = texture2D( tDiffuse, vUv );
+
+			float l = luminance( texel.rgb );
+
+			gl_FragColor = vec4( l, l, l, texel.w );
+
+		}`
+
+};
+
+/**
+ * Sobel Edge Detection (see https://youtu.be/uihBwtPIBxM)
+ *
+ * As mentioned in the video the Sobel operator expects a grayscale image as input.
+ *
+ */
+
+const SobelOperatorShader = {
+
+	name: 'SobelOperatorShader',
+
+	uniforms: {
+
+		'tDiffuse': { value: null },
+		'resolution': { value: new Vector2() }
+
+	},
+
+	vertexShader: /* glsl */`
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vUv = uv;
+
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+
+	fragmentShader: /* glsl */`
+
+		uniform sampler2D tDiffuse;
+		uniform vec2 resolution;
+		varying vec2 vUv;
+
+		void main() {
+
+			vec2 texel = vec2( 1.0 / resolution.x, 1.0 / resolution.y );
+
+		// kernel definition (in glsl matrices are filled in column-major order)
+
+			const mat3 Gx = mat3( -1, -2, -1, 0, 0, 0, 1, 2, 1 ); // x direction kernel
+			const mat3 Gy = mat3( -1, 0, 1, -2, 0, 2, -1, 0, 1 ); // y direction kernel
+
+		// fetch the 3x3 neighbourhood of a fragment
+
+		// first column
+
+			float tx0y0 = texture2D( tDiffuse, vUv + texel * vec2( -1, -1 ) ).r;
+			float tx0y1 = texture2D( tDiffuse, vUv + texel * vec2( -1,  0 ) ).r;
+			float tx0y2 = texture2D( tDiffuse, vUv + texel * vec2( -1,  1 ) ).r;
+
+		// second column
+
+			float tx1y0 = texture2D( tDiffuse, vUv + texel * vec2(  0, -1 ) ).r;
+			float tx1y1 = texture2D( tDiffuse, vUv + texel * vec2(  0,  0 ) ).r;
+			float tx1y2 = texture2D( tDiffuse, vUv + texel * vec2(  0,  1 ) ).r;
+
+		// third column
+
+			float tx2y0 = texture2D( tDiffuse, vUv + texel * vec2(  1, -1 ) ).r;
+			float tx2y1 = texture2D( tDiffuse, vUv + texel * vec2(  1,  0 ) ).r;
+			float tx2y2 = texture2D( tDiffuse, vUv + texel * vec2(  1,  1 ) ).r;
+
+		// gradient value in x direction
+
+			float valueGx = Gx[0][0] * tx0y0 + Gx[1][0] * tx1y0 + Gx[2][0] * tx2y0 +
+				Gx[0][1] * tx0y1 + Gx[1][1] * tx1y1 + Gx[2][1] * tx2y1 +
+				Gx[0][2] * tx0y2 + Gx[1][2] * tx1y2 + Gx[2][2] * tx2y2;
+
+		// gradient value in y direction
+
+			float valueGy = Gy[0][0] * tx0y0 + Gy[1][0] * tx1y0 + Gy[2][0] * tx2y0 +
+				Gy[0][1] * tx0y1 + Gy[1][1] * tx1y1 + Gy[2][1] * tx2y1 +
+				Gy[0][2] * tx0y2 + Gy[1][2] * tx1y2 + Gy[2][2] * tx2y2;
+
+		// magnitute of the total gradient
+
+			float G = sqrt( ( valueGx * valueGx ) + ( valueGy * valueGy ) );
+
+			gl_FragColor = vec4( vec3( G ), 1 );
+
+		}`
+
+};
+
 class twoDify{
-    constructor(scene, camera, container)
+    constructor(scene, camera)
     {
+        this.lod = 2;
+        this.views = [];
+
         this.mainScene = scene;
         this.playerCamera = camera;
-
-        this.container = container;
-
-        // this.orthoScene = new Scene();
-        this.orthoCamera = this.createOrthoCamera();
-        this.orthoRenderer = this.createOrthoRenderer();
-
-        this.orthoLabelRenderer = new CSS2DRenderer();
-        this.orthoLabelRenderer.setSize( this.container.clientWidth, this.container.clientHeight );
-        this.orthoLabelRenderer.domElement.style.position = 'absolute';
-        this.orthoLabelRenderer.domElement.style.top = '0';
-        this.container.appendChild( this.orthoLabelRenderer.domElement );
-
-        this.player = this.createPlayer();
-        //this.rotatePlayer();
 
         this.startRendering();
     }
@@ -69518,39 +70396,52 @@ class twoDify{
         console.log("Creating Container");
     }
 
-    addMarker(){
-        console.log("Adding marker");
+    addMarker(point, icon){
+        const labelDiv = document.createElement('div');
+        const htmlIcon = document.createElement("p");
+        htmlIcon.innerHTML = icon;
+        htmlIcon.style.width = "1.5rem";
+        htmlIcon.style.height = "1.5rem";
+        labelDiv.append(htmlIcon);
+        labelDiv.classList.add("example-label");
+        const labelObject = new CSS2DObject(labelDiv);
+        labelObject.position.set(point.x, point.y, point.z);
+        this.mainScene.add(labelObject);
     }
 
-    createOrthoCamera(){
+    createOrthoCamera(viewType){
         const camera = new OrthographicCamera(
-            -40,
-            40,
-            40,
-            -40,
+            0,
+            0,
+            0,
+            0,
             0.1,
             10000
         );
         //camera.position.set(0, 0, 2);
-        camera.rotation.x = 3 * Math.PI / 2;
 
-        // this factor is important for LOD
-        camera.position.set(0, 3, 0);
+        if(viewType === "top"){
+            camera.rotation.x = 3 * Math.PI / 2;
+            camera.position.set(0, 99, 0);
+        }
+        else if(viewType === "front"){
+            camera.position.set(0, 0, 99);
+        }
 
         camera.updateProjectionMatrix();
         return camera;
     }
 
-    updateLOD() {
-        camera.position.set(0, 20, 0);
+    updateLOD(value) {
+        this.lod = value;
     }
 
-    createOrthoRenderer(){
+    createOrthoRenderer(container){
         const renderer = new WebGLRenderer();
-        renderer.setSize( this.container.clientWidth, this.container.clientHeight );
+        renderer.setSize( container.clientWidth, container.clientHeight );
         renderer.setPixelRatio( Math.min(window.devicePixelRatio, 2) );
         renderer.setClearColor( 0x000000, 0 );
-        this.container.appendChild( renderer.domElement );
+        container.appendChild( renderer.domElement );
         renderer.clearColor('0xfffff');
         return renderer;
     }
@@ -69590,62 +70481,129 @@ class twoDify{
     }
 
     startRendering(controls){
-        // this.orthoCamera.position.copy( this.mainCamera.position );
-        // this.orthoCamera.quaternion.copy( this.mainCamera.quaternion );
-        if(this.playerCamera.position.y > 0) {
-            this.player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
-        } else {
-            this.player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
-        }
+        // if(this.playerCamera.position.y > 0) {
+        //     this.player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
+        // } else {
+        //     this.player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
+        // }
 
-        this.player.element.style.transition = 'transform 0.3s ease'; // Adjust the transition duration if needed
+        this.views.forEach((view) => {
+            const { camera, renderer, labelRenderer, composer, player } = view;
 
-        if(document.getElementById("player-2dify")){
-            const deg = -MathUtils.radToDeg(controls.getAzimuthalAngle());
-            document.getElementById("player-2dify").style.transform = "rotate(" + deg + "deg)";
-        }
+            if (this.playerCamera.position.y > 0) {
+                camera.position.x = this.playerCamera.position.x;
+                camera.position.z = this.playerCamera.position.z;
+            } else {
+                camera.position.x = this.playerCamera.position.x;
+                camera.position.z = this.playerCamera.position.z;
+            }
 
-        this.orthoRenderer.render(this.mainScene, this.orthoCamera);
-        this.orthoLabelRenderer.render(this.mainScene, this.orthoCamera);
-        // console.log(this.playerCamera.position);
+            if (this.playerCamera.position.y > 0) {
+                player.position.set(this.playerCamera.position.x, -this.playerCamera.position.y, this.playerCamera.position.z);
+            } else {
+                player.position.set(this.playerCamera.position.x, this.playerCamera.position.y, this.playerCamera.position.z);
+            }
+
+            player.element.style.transition = 'transform 0.3s ease';
+
+            if (document.getElementById("player-2dify")) {
+                const deg = -MathUtils.radToDeg(controls.getAzimuthalAngle());
+                document.getElementById("player-2dify").style.transform = "rotate(" + deg + "deg)";
+            }
+
+            renderer.render(this.mainScene, camera);
+            labelRenderer.render(this.mainScene, camera);
+            composer.render();
+        });
     }
 
     moveTheCameraToFit(){
-        const meshGroup = new Group();
-        this.mainScene.children.forEach((mesh) => {
-            if(mesh.type === "Mesh" || mesh.type === "Group"){
-                meshGroup.add(mesh.clone());
+        this.views.forEach((view) => {
+            const { camera } = view;
+            const meshGroup = new Group();
+
+            this.mainScene.children.forEach((mesh) => {
+                if (mesh.type === "Mesh" || mesh.type === "Group") {
+                    meshGroup.add(mesh.clone());
+                }
+            });
+
+            meshGroup.visible = false;
+            this.mainScene.add(meshGroup);
+
+            const boundingBox = new Box3().setFromObject(meshGroup);
+            new Box3Helper(boundingBox, 0xff0000);
+
+            const center = boundingBox.getCenter(new Vector3());
+            const size = boundingBox.getSize(new Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            maxDim / (2 * Math.tan(camera.fov * (Math.PI / 180) / 2));
+
+            camera.position.copy(center);
+
+            if (size.x > size.z) {
+                camera.left = -size.x / this.lod;
+                camera.right = size.x / this.lod;
+                camera.top = size.x / this.lod;
+                camera.bottom = -size.x / this.lod;
+            } else {
+                camera.left = -size.z / this.lod;
+                camera.right = size.z / this.lod;
+                camera.top = size.z / this.lod;
+                camera.bottom = -size.z / this.lod;
             }
+
+            camera.updateProjectionMatrix();
         });
-        meshGroup.visible = false;
-        this.mainScene.add(meshGroup);
-
-        const boundingBox = new Box3().setFromObject(meshGroup);
-        const boxHelper = new Box3Helper(boundingBox, 0xff0000);
-        this.mainScene.add(boxHelper);
-
-        const center = boundingBox.getCenter(new Vector3());
-        const size = boundingBox.getSize(new Vector3());
-
-        const maxDim = Math.max(size.x, size.y, size.z);
-        maxDim / (2 * Math.tan(this.orthoCamera.fov * (Math.PI / 180) / 2));
-
-        this.orthoCamera.position.copy(center);
-
-        if(size.x > size.y){
-            this.orthoCamera.left = -size.x / 2;
-            this.orthoCamera.right = size.x / 2;
-            this.orthoCamera.top = size.x / 2;
-            this.orthoCamera.bottom = -size.x / 2;
-        } else {
-            this.orthoCamera.left = -size.y / 2;
-            this.orthoCamera.right = size.y / 2;
-            this.orthoCamera.top = size.y / 2;
-            this.orthoCamera.bottom = -size.y / 2;
-        }
-
-        this.orthoCamera.updateProjectionMatrix();
     }
+
+
+    createNewView(container, viewType) {
+        const newOrthoCamera = this.createOrthoCamera(viewType);
+        const newOrthoRenderer = this.createOrthoRenderer(container);
+        const newOrthoLabelRenderer = new CSS2DRenderer();
+        newOrthoLabelRenderer.setSize(container.clientWidth, container.clientHeight);
+        newOrthoLabelRenderer.domElement.style.position = 'absolute';
+        newOrthoLabelRenderer.domElement.style.top = '0';
+        container.appendChild(newOrthoLabelRenderer.domElement);
+
+        const newComposer = new EffectComposer(newOrthoRenderer);
+        const newRenderPass = new RenderPass(this.mainScene, newOrthoCamera);
+        newComposer.addPass(newRenderPass);
+
+        const newEffectGrayScale = new ShaderPass(LuminosityShader);
+        newComposer.addPass(newEffectGrayScale);
+
+        const newEffectSobel = new ShaderPass(SobelOperatorShader);
+        newEffectSobel.uniforms['resolution'].value.x = container.clientWidth * window.devicePixelRatio;
+        newEffectSobel.uniforms['resolution'].value.y = container.clientHeight * window.devicePixelRatio;
+        newComposer.addPass(newEffectSobel);
+
+        const newPlayer = this.createPlayer();
+        this.mainScene.add(newPlayer);
+
+        const newOrthoCameraPosition = new Vector3().copy(this.playerCamera.position);
+        newOrthoCamera.position.copy(newOrthoCameraPosition);
+
+        this.views.push({
+            id: container.id,
+            camera: newOrthoCamera,
+            renderer: newOrthoRenderer,
+            labelRenderer: newOrthoLabelRenderer,
+            composer: newComposer,
+            player: newPlayer
+        });
+
+        return {
+            camera: newOrthoCamera,
+            renderer: newOrthoRenderer,
+            labelRenderer: newOrthoLabelRenderer,
+            composer: newComposer,
+            player: newPlayer
+        };
+    }
+
 }
 
 /**
@@ -74374,23 +75332,31 @@ async function init() {
     const geometry = new BoxGeometry$1();
     const material = new MeshStandardMaterial({ color: 0x00ff00 });
     const cube1 = new Mesh$1(geometry, material);
-    cube1.position.y = -3;
+    cube1.position.x = -30;
     scene.add(cube1);
 
     const cube2 = new Mesh$1(geometry, material);
     cube2.position.x = 50;
+    cube2.position.y = 10;
     scene.add(cube2);
 
     // 2Dify Code
-    const twoDifyInstance = new twoDify(scene, camera, document.getElementById("my-2d-map"));
-    // twoDifyInstance.createContainer();
-    // twoDifyInstance.addMesh(cube);
+    const twoDifyInstance = new twoDify(scene, camera);
+    twoDifyInstance.updateLOD(3);
+
+    twoDifyInstance.createNewView(document.getElementById("container2"), 'front');
+
+    twoDifyInstance.createNewView(document.getElementById("my-2d-map"), 'top');
+
 
     const loader = new GLTFLoader();
     await loader.load('../resources/lowpoly_football_field_and_a_supermarket.glb', (gltf) => {
         scene.add(gltf.scene);
         twoDifyInstance.moveTheCameraToFit();
     });
+
+    twoDifyInstance.addMarker({x: 9, y: 0, z: 7}, "⚽");
+    twoDifyInstance.addMarker({x: 20, y: 0, z: -15}, "🍲");
 
     //Creates the lights of the scene
     const lightColor = 0xFDB813;
@@ -74403,7 +75369,6 @@ async function init() {
     directionalLight.target.position.set(0, 0, 0);
     scene.add(directionalLight);
     scene.add(directionalLight.target);
-
 
     const controls = new OrbitControls(camera, threeCanvas);
     controls.enableDamping = true;

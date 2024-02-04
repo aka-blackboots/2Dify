@@ -34,23 +34,31 @@ async function init() {
     const geometry = new BoxGeometry();
     const material = new MeshStandardMaterial({ color: 0x00ff00 });
     const cube1 = new Mesh(geometry, material);
-    cube1.position.y = -3;
+    cube1.position.x = -30
     scene.add(cube1);
 
     const cube2 = new Mesh(geometry, material);
     cube2.position.x = 50;
+    cube2.position.y = 10
     scene.add(cube2);
 
     // 2Dify Code
-    const twoDifyInstance = new twoDify(scene, camera, document.getElementById("my-2d-map"));
-    // twoDifyInstance.createContainer();
-    // twoDifyInstance.addMesh(cube);
+    const twoDifyInstance = new twoDify(scene, camera);
+    twoDifyInstance.updateLOD(3);
+
+    twoDifyInstance.createNewView(document.getElementById("container2"), 'front');
+
+    twoDifyInstance.createNewView(document.getElementById("my-2d-map"), 'top');
+
 
     const loader = new GLTFLoader();
     await loader.load('../resources/lowpoly_football_field_and_a_supermarket.glb', (gltf) => {
         scene.add(gltf.scene);
         twoDifyInstance.moveTheCameraToFit();
     });
+
+    twoDifyInstance.addMarker({x: 9, y: 0, z: 7}, "⚽");
+    twoDifyInstance.addMarker({x: 20, y: 0, z: -15}, "🍲");
 
     //Creates the lights of the scene
     const lightColor = 0xFDB813;

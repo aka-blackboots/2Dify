@@ -8,8 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run build-library && npm run build-example",
     "build-library": "cd config && rollup -c rollup.config.js",
-    "build-example": "cd example && rollup -c rollup.config.js",
-    "publish": "copy package.json to dist folder and publish"
+    "build-example": "cd example && rollup -c rollup.config.js"
   },
   "keywords": [],
   "author": "",
