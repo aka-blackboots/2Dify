@@ -1,0 +1,25 @@
+{
+  "name": "2dify",
+  "version": "0.0.1",
+  "description": "A Tiny Package to 2Dify your 3D Models",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm run build-library && npm run build-example",
+    "build-library": "cd config && rollup -c rollup.config.js",
+    "build-example": "cd example && rollup -c rollup.config.js",
+    "publish": "copy package.json to dist folder and publish"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "camera-controls": "^2.7.4",
+    "rollup": "^4.9.6",
+    "three": "^0.161.0"
+  }
+}
