@@ -7,7 +7,9 @@ import {
     MeshBasicMaterial,
     Mesh,
     DirectionalLight,
-    AmbientLight, MeshStandardMaterial
+    AmbientLight,
+    MeshStandardMaterial,
+    Vector3,
 } from 'three';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
 import { twoDify} from "../dist/twoDify.js";
@@ -83,6 +85,8 @@ async function init() {
         renderer.setSize(size.width, size.height);
     };
 
+    addWASDControls(controls, camera)
+
     window.addEventListener('resize', handleResize);
 
     const animate = () => {
@@ -102,3 +106,29 @@ async function init() {
 
 init();
 
+
+function addWASDControls(orbitControls, camera, speed = 1) {
+    document.addEventListener('keydown', function(event) {
+        const right = new Vector3().crossVectors(
+            camera.up, camera.getWorldDirection(new Vector3()).negate()).normalize();
+
+        switch(event.key) {
+            case 'w': // forward
+                camera.position.x += speed * camera.getWorldDirection(new Vector3()).x;
+                camera.position.z += speed * camera.getWorldDirection(new Vector3()).z;
+                break;
+            case 'a': // left
+                camera.position.addScaledVector(right, -speed)
+                break;
+            case 's': // back
+                camera.position.x -= speed * camera.getWorldDirection(new Vector3()).x;
+                camera.position.z -= speed * camera.getWorldDirection(new Vector3()).z;
+                break;
+            case 'd': // right
+                camera.position.addScaledVector(right, speed)
+                break;
+        }
+
+        orbitControls.update();
+    });
+}
