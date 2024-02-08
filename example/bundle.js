@@ -75381,6 +75381,8 @@ async function init() {
         renderer.setSize(size.width, size.height);
     };
 
+    addWASDControls(controls, camera);
+
     window.addEventListener('resize', handleResize);
 
     const animate = () => {
@@ -75399,3 +75401,30 @@ async function init() {
 
 
 init();
+
+
+function addWASDControls(orbitControls, camera, speed = 1) {
+    document.addEventListener('keydown', function(event) {
+        const right = new Vector3$1().crossVectors(
+            camera.up, camera.getWorldDirection(new Vector3$1()).negate()).normalize();
+
+        switch(event.key) {
+            case 'w': // forward
+                camera.position.x += speed * camera.getWorldDirection(new Vector3$1()).x;
+                camera.position.z += speed * camera.getWorldDirection(new Vector3$1()).z;
+                break;
+            case 'a': // left
+                camera.position.addScaledVector(right, -speed);
+                break;
+            case 's': // back
+                camera.position.x -= speed * camera.getWorldDirection(new Vector3$1()).x;
+                camera.position.z -= speed * camera.getWorldDirection(new Vector3$1()).z;
+                break;
+            case 'd': // right
+                camera.position.addScaledVector(right, speed);
+                break;
+        }
+
+        orbitControls.update();
+    });
+}
