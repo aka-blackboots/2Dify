@@ -16,7 +16,7 @@ html, body {
     height: 300px;
     width: 300px;
     position: absolute;
-    top: 0;
+    bottom: 0;
     border-radius: 0px;
     background-color: white;
 }
@@ -25,7 +25,7 @@ html, body {
     height: 300px;
     width: 300px;
     position: absolute;
-    top: 0;
+    bottom: 0;
     right: 0;
     border-radius: 0px;
     background-color: white;

@@ -16,7 +16,7 @@ import {EffectComposer} from "three/examples/jsm/postprocessing/effectComposer.j
 import {RenderPass} from "three/examples/jsm/postprocessing/renderPass.js";
 import {ShaderPass} from "three/examples/jsm/postprocessing/shaderPass.js";
 import {LuminosityShader} from "three/examples/jsm/shaders/LuminosityShader.js";
-import {SobelOperatorShader} from "three/examples/jsm/shaders/SobelOperatorShader.js";
+import {SobelOperatorShader} from "./shader/SobelColor.js";
 
 export class twoDify{
     constructor(scene, camera)
@@ -104,6 +104,7 @@ export class twoDify{
 
     updateLOD(value) {
         this.lod = value;
+        this.moveTheCameraToFit();
     }
 
     createOrthoRenderer(container){
@@ -276,4 +277,17 @@ export class twoDify{
         };
     }
 
+    setLineColor(color){
+        this.views.forEach((view) => {
+            const { composer } = view;
+            composer.passes[2].uniforms['lineColor'].value.set(color);
+        });
+    }
+
+    setBackgroundColor(color){
+        this.views.forEach((view) => {
+            const { composer } = view;
+            composer.passes[2].uniforms['backgroundColor'].value.set(color);
+        });
+    }
 }
