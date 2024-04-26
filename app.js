@@ -14,7 +14,7 @@ import {
 import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import {EffectComposer} from "three/examples/jsm/postprocessing/effectComposer.js";
 import {RenderPass} from "three/examples/jsm/postprocessing/renderPass.js";
-import {ShaderPass} from "three/examples/jsm/postprocessing/shaderPass.js";
+import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass.js";
 import {LuminosityShader} from "three/examples/jsm/shaders/LuminosityShader.js";
 import {SobelOperatorShader} from "./shader/SobelColor.js";
 
