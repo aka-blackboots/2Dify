@@ -6,9 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "tsc-build": "tsc",
-    "build": "npm run build-library && npm run build-example",
-    "build-library": "cd config && rollup -c rollup.config.js",
+    "build": "tsc && npm run build-example",
+    "build-esm": "cd config && rollup -c rollup.config.js",
     "build-example": "cd example && rollup -c rollup.config.js"
   },
   "keywords": [
@@ -23,7 +22,7 @@
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
-    "camera-controls": "^2.7.4",
+    "camera-controls": "^2.8.3",
     "rollup": "^4.9.6",
     "three": "^0.161.0"
   },
