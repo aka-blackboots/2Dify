@@ -1,17 +1,21 @@
 {
   "name": "2dify",
   "version": "0.0.3",
-  "description": "A Tiny Package to 2Dify your 3D Models",
+  "description": "Robust 2D Floor Creation Library",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "tsc-build": "tsc",
     "build": "npm run build-library && npm run build-example",
     "build-library": "cd config && rollup -c rollup.config.js",
     "build-example": "cd example && rollup -c rollup.config.js"
   },
   "keywords": [
-    "FloorPlan", "3DFloorPlan", "2Dify", "Floor Plans"
+    "FloorPlan",
+    "3DFloorPlan",
+    "2Dify",
+    "Floor Plans"
   ],
   "author": "Vishwajeet Mane",
   "license": "ISC",
@@ -24,6 +28,8 @@
     "three": "^0.161.0"
   },
   "devDependencies": {
-    "dat.gui": "^0.7.9"
+    "@types/three": "^0.164.0",
+    "dat.gui": "^0.7.9",
+    "typescript": "^5.4.5"
   }
 }
