@@ -9,6 +9,16 @@
 </head>
 <body>
 <div id="three-container"></div>
-<script type="module" src="bundle.js"></script>
+<button style="position: absolute" id="createWall">Create Wall</button>
+<script type="module">
+    import twoDify from './twoDify.js';
+    const container = document.getElementById('three-container');
+    const dify = new twoDify(container);
+    
+    const createWall = document.getElementById('createWall');
+    createWall.addEventListener('click', () => {
+        const wall = dify.selectElement('Wall');
+    });
+</script>
 </body>
 </html>

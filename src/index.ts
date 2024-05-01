@@ -1,10 +1,10 @@
-// import { Wall } from './elements/wall';
+import { Wall } from './elements/wall';
 import * as types from './elements/base-types';
 import { ThreeScene } from './three/scene';
 import * as THREE from 'three';
 
 export default class twoDify {
-    // private floorElements: any;
+    private floorElements: any = [];
     private activeElement: any;
     private sceneManager: ThreeScene;
 
@@ -22,10 +22,12 @@ export default class twoDify {
     selectElement(type: types.FloorElement) {
         this.activeElement = type;
         console.log('selectElement', this.activeElement);
-        // switch (type) {
-        //     case types.FloorElement.Wall:
-        //         this.createSimpleWall();
-        //         break;
+
+        switch (type) {
+            case 'Wall':
+                const wall = new Wall(this.sceneManager.scene).createSimpleWall();
+                this.floorElements.push(wall);
+                break;
             // case types.FloorElement.Door:
             //     this.createSimpleDoor();
             //     break;
@@ -44,9 +46,9 @@ export default class twoDify {
             // case types.FloorElement.Sofa:
             //     this.createSimpleSofa();
             //     break;
-        //     default:
-        //         break;
-        // }
+            default:
+                break;
+        }
     }
 
     // createSimpleWall() {

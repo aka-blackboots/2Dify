@@ -1,14 +1,16 @@
-import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 
 export default {
-    input: 'main.js',
+    input: './../dist/src/index.js',
     output: [
         {
             format: 'esm',
-            file: 'bundle.js'
+            file: 'twoDify.js'
         },
     ],
     plugins: [
-        resolve(),
+        nodeResolve(),
+        commonjs()
     ]
 };
