@@ -6,7 +6,7 @@ export class GridManager {
         this.scene = scene;
         const grid = new THREE.GridHelper(100, 100);
         grid.computeLineDistances();
-        grid.material = new THREE.LineDashedMaterial({dashSize: 0.02, gapSize: 0.1, vertexColors: true});
+        grid.material = new THREE.LineDashedMaterial({dashSize: 0.015, gapSize: 0.175, vertexColors: true});
         this.scene.add(grid);
     }
 

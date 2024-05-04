@@ -53732,18 +53732,94 @@ var THREE$1 = /*#__PURE__*/Object.freeze({
 	sRGBEncoding: sRGBEncoding
 });
 
-class Wall {
-    constructor(scene) {
-        this.width = 1;
-        this.length = 5;
-        this.height = 10;
-        this.scene = scene;
+class twoDElement {
+    constructor(sceneManager) {
+        this.sceneManager = sceneManager;
     }
-    createSimpleWall() {
-        const wall = new Mesh(new BoxGeometry(this.width, this.height, this.length), new MeshLambertMaterial({ color: 0x00ff00 }));
-        this.scene.add(wall);
-        console.log(wall);
-        return wall;
+    deleteElement() {
+        this.sceneManager.scene.remove(this);
+    }
+}
+
+class Wall extends twoDElement {
+    constructor(sceneManager) {
+        super(sceneManager);
+        this.isPlaced = false;
+        this.isMoving = false;
+        this.isEditDone = false;
+        this.sceneManager = sceneManager;
+    }
+    createWall() {
+        // const wall = new THREE.Mesh(
+        //     new THREE.BoxGeometry(this.width, this.height, this.length),
+        //     new THREE.MeshLambertMaterial({ color: 0x00ff00 })
+        // );
+        const wallLine = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x0000ff }));
+        wallLine.visible = false;
+        this.sceneManager.scene.add(wallLine);
+        this.mesh = wallLine;
+        return this;
+    }
+    onPointerDown(event) {
+        const x = event.clientX;
+        const y = event.clientY;
+        const mouse = new Vector2();
+        mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
+        const raycaster = this.sceneManager.raycaster;
+        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
+        if (!this.mesh || intersects.length <= 0)
+            return;
+        if (this.isPlaced && this.isMoving) {
+            const point = intersects[0].point;
+            // Ending the Last Point of the Wall
+            const geometry = this.mesh.geometry;
+            const position = geometry.getAttribute('position');
+            position.setXYZ(1, point.x, 0, point.z);
+            position.needsUpdate = true;
+            this.isEditDone = true;
+            this.isMoving = false;
+            const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
+            sphere.position.copy(point);
+            this.sceneManager.scene.add(sphere);
+        }
+        if (!this.isPlaced && !this.isEditDone) {
+            const point = intersects[0].point;
+            console.log(this.mesh);
+            const geometry = new BufferGeometry();
+            geometry.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
+            this.mesh.geometry = geometry;
+            const position = geometry.getAttribute('position');
+            position.setXYZ(0, point.x, 0, point.z);
+            position.setXYZ(1, point.x, 0, point.z);
+            this.mesh.visible = true;
+            this.isPlaced = true;
+            this.isMoving = true;
+            // Create a sphere to mark the starting point of the wall
+            const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
+            sphere.position.copy(point);
+            this.sceneManager.scene.add(sphere);
+        }
+    }
+    onPointerMove(event) {
+        const x = event.clientX;
+        const y = event.clientY;
+        const mouse = new Vector2();
+        mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
+        if (!this.mesh)
+            return;
+        const raycaster = this.sceneManager.raycaster;
+        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
+        if (intersects.length > 0 && this.isMoving) {
+            const point = intersects[0].point;
+            const geometry = this.mesh.geometry;
+            const position = geometry.getAttribute('position');
+            position.setXYZ(1, point.x, 0, point.z);
+            position.needsUpdate = true;
+        }
     }
 }
 
@@ -56287,25 +56363,44 @@ class GridManager {
         this.scene = scene;
         const grid = new GridHelper(100, 100);
         grid.computeLineDistances();
-        grid.material = new LineDashedMaterial({ dashSize: 0.02, gapSize: 0.1, vertexColors: true });
+        grid.material = new LineDashedMaterial({ dashSize: 0.015, gapSize: 0.175, vertexColors: true });
         this.scene.add(grid);
     }
 }
 
 class ThreeScene {
     constructor(container) {
+        this.renderer = new WebGLRenderer({
+            antialias: true,
+            alpha: true
+        });
+        this._raycaster = new Raycaster();
         this.clock = new Clock();
+        this._virtualFloor = new Mesh();
         this.container = container;
         CameraControls.install({ THREE: THREE$1 });
     }
     get raycaster() {
         return this._raycaster;
     }
+    setupVirtualFloor() {
+        const geometry = new PlaneGeometry(100, 100);
+        const material = new MeshBasicMaterial({
+            color: 0x0000ff,
+            side: DoubleSide,
+            transparent: true,
+            opacity: 0.1
+        });
+        this._virtualFloor = new Mesh(geometry, material);
+        this._virtualFloor.rotation.x = Math.PI / 2;
+        this.scene.add(this._virtualFloor);
+    }
+    get virtualFloor() {
+        return this._virtualFloor;
+    }
     setupThree() {
         this.scene = new Scene();
         this.camera = new twoDCamera(this.container, this.scene).createCamera();
-        console.log('this.camera', this.camera);
-        this.renderer = new WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0xffffff, 1);
         this.container.appendChild(this.renderer.domElement);
@@ -56313,6 +56408,7 @@ class ThreeScene {
         this.setupLights();
         this.grid = new GridManager(this.scene);
         this._raycaster = new Raycaster();
+        this.setupVirtualFloor();
         this.animate();
     }
     setupLights() {
@@ -56335,6 +56431,24 @@ class ThreeScene {
     }
 }
 
+class FloorControls {
+    constructor(sceneManager) {
+        this.sceneManager = sceneManager;
+    }
+    setActiveElement(element) {
+        this.setupEvents(element);
+    }
+    setupEvents(element) {
+        const domElement = this.sceneManager.renderer.domElement;
+        domElement.addEventListener('mousedown', () => {
+            element.onPointerDown(event);
+        });
+        domElement.addEventListener('mousemove', () => {
+            element.onPointerMove(event);
+        });
+    }
+}
+
 const VERSION = '0.6.0';
 
 class twoDify {
@@ -56343,17 +56457,24 @@ class twoDify {
         console.log('twoDify constructor');
         this.sceneManager = new ThreeScene(container);
         this.sceneManager.setupThree();
-        this.setupEvents();
+        this.floorControls = new FloorControls(this.sceneManager);
     }
     setupEvents() {
         console.log('setupEvents');
+    }
+    setActiveElement(type) {
+        console.log('Active Element - ', type);
+        if (type === 'Wall') {
+            const wall = new Wall(this.sceneManager).createWall();
+            this.floorControls.setActiveElement(wall);
+        }
     }
     selectElement(type) {
         this.activeElement = type;
         console.log('selectElement', this.activeElement);
         switch (type) {
             case 'Wall':
-                const wall = new Wall(this.sceneManager.scene).createSimpleWall();
+                const wall = new Wall(this.sceneManager.scene).createWall();
                 this.floorElements.push(wall);
                 break;
         }

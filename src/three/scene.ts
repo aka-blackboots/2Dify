@@ -5,14 +5,18 @@ import { GridManager } from './grid-manager';
 
 export class ThreeScene {
     scene: any;
-    private camera: any;
-    private renderer: any;
+    public camera: any;
+    public renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true
+    });
     private controls: any;
-    private _raycaster: any;
+    private _raycaster: THREE.Raycaster = new THREE.Raycaster();
     private container: HTMLElement;
     private grid: any;
 
     private clock = new THREE.Clock();
+    private _virtualFloor: THREE.Mesh = new THREE.Mesh();
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -23,13 +27,26 @@ export class ThreeScene {
         return this._raycaster;
     }
 
+    private setupVirtualFloor() {
+        const geometry = new THREE.PlaneGeometry(100, 100);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x0000ff, 
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.1
+        });
+        this._virtualFloor = new THREE.Mesh(geometry, material);
+        this._virtualFloor.rotation.x = Math.PI / 2;
+        this.scene.add(this._virtualFloor);
+    }
+
+    get virtualFloor() {
+        return this._virtualFloor;
+    }
+
     setupThree() {
         this.scene = new THREE.Scene();
         this.camera = new twoDCamera(this.container, this.scene).createCamera();
-        console.log('this.camera', this.camera);
-        this.renderer = new THREE.WebGLRenderer(
-            { antialias: true, alpha: true }
-        );
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0xffffff, 1);
         this.container.appendChild(this.renderer.domElement);
@@ -37,6 +54,7 @@ export class ThreeScene {
         this.setupLights();
         this.grid = new GridManager(this.scene);
         this._raycaster = new THREE.Raycaster();
+        this.setupVirtualFloor();
         this.animate();
     }
 

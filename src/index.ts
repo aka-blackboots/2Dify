@@ -2,21 +2,31 @@ import { Wall } from './elements/wall';
 import * as types from './elements/base-types';
 import { ThreeScene } from './three/scene';
 import * as THREE from 'three';
+import { FloorControls } from './three/floor-controls';
 
 export default class twoDify {
     private floorElements: any = [];
     private activeElement: any;
     private sceneManager: ThreeScene;
+    private floorControls: FloorControls;
 
     constructor(container: HTMLElement) {
         console.log('twoDify constructor');
         this.sceneManager = new ThreeScene(container);
         this.sceneManager.setupThree();
-        this.setupEvents();
+        this.floorControls = new FloorControls(this.sceneManager);
     }
 
     setupEvents() {
         console.log('setupEvents');
+    }
+
+    setActiveElement(type: types.FloorElement) {
+        console.log('Active Element - ', type);
+        if(type === 'Wall'){
+            const wall = new Wall(this.sceneManager).createWall();
+            this.floorControls.setActiveElement(wall);
+        }
     }
 
     selectElement(type: types.FloorElement) {
@@ -25,7 +35,7 @@ export default class twoDify {
 
         switch (type) {
             case 'Wall':
-                const wall = new Wall(this.sceneManager.scene).createSimpleWall();
+                const wall = new Wall(this.sceneManager.scene).createWall();
                 this.floorElements.push(wall);
                 break;
             // case types.FloorElement.Door:
