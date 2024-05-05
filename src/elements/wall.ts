@@ -42,7 +42,6 @@ export class Wall extends twoDElement {
 
         if (this.isPlaced && this.isMoving) {
             const point = intersects[0].point;
-            // Ending the Last Point of the Wall
             const geometry = this.mesh.geometry as THREE.BufferGeometry;
             const position = geometry.getAttribute('position') as THREE.BufferAttribute;
             position.setXYZ(1, point.x, 0, point.z);
@@ -73,7 +72,6 @@ export class Wall extends twoDElement {
             this.isPlaced = true;
             this.isMoving = true;
 
-            // Create a sphere to mark the starting point of the wall
             const sphere = new THREE.Mesh(
                 new THREE.SphereGeometry(0.1),
                 new THREE.MeshBasicMaterial({ color: 0xff0000 })
