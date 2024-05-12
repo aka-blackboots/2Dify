@@ -29,6 +29,7 @@ export default class twoDify {
         }
     }
 
+    // TODO: After creation done, remove the active element and event listeners
     selectElement(type: types.FloorElement) {
         this.activeElement = type;
         console.log('selectElement', this.activeElement);

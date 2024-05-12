@@ -19,6 +19,9 @@ export class FloorControls {
     domElement.addEventListener('mousemove', () => {
       element.onPointerMove(event);
     });
+    window.onkeydown = (event) => {
+      element.onKeyDown(event);
+    }
   }
 
 

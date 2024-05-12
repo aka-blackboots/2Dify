@@ -37,6 +37,7 @@ export class ThreeScene {
         });
         this._virtualFloor = new THREE.Mesh(geometry, material);
         this._virtualFloor.rotation.x = Math.PI / 2;
+        this._virtualFloor.position.y = -0.1;
         this.scene.add(this._virtualFloor);
     }
 

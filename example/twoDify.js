@@ -53747,17 +53747,22 @@ class Wall extends twoDElement {
         this.isPlaced = false;
         this.isMoving = false;
         this.isEditDone = false;
+        this.wallGroup = new Group();
         this.sceneManager = sceneManager;
     }
     createWall() {
-        // const wall = new THREE.Mesh(
-        //     new THREE.BoxGeometry(this.width, this.height, this.length),
-        //     new THREE.MeshLambertMaterial({ color: 0x00ff00 })
-        // );
-        const wallLine = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x0000ff }));
-        wallLine.visible = false;
-        this.sceneManager.scene.add(wallLine);
-        this.mesh = wallLine;
+        this.mesh = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x0000ff }));
+        this.wallGroup.add(this.mesh);
+        this.sceneManager.scene.add(this.wallGroup);
+        // Expirement new wall creation
+        const pGeom = new PlaneGeometry(0.5, 0.5, 32);
+        const pMat = new MeshBasicMaterial({ color: 0x4d4d4d, side: DoubleSide });
+        this.mesh2 = new Mesh(pGeom, pMat);
+        this.mesh2.rotateX(Math.PI / 2);
+        this.mesh2.visible = false;
+        this.sceneManager.scene.add(this.mesh2);
+        this.normalVector = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x4d4d4d }));
+        this.sceneManager.scene.add(this.normalVector);
         return this;
     }
     onPointerDown(event) {
@@ -53772,8 +53777,8 @@ class Wall extends twoDElement {
         if (!this.mesh || intersects.length <= 0)
             return;
         if (this.isPlaced && this.isMoving) {
+            console.log('Editing Wall');
             const point = intersects[0].point;
-            // Ending the Last Point of the Wall
             const geometry = this.mesh.geometry;
             const position = geometry.getAttribute('position');
             position.setXYZ(1, point.x, 0, point.z);
@@ -53782,11 +53787,12 @@ class Wall extends twoDElement {
             this.isMoving = false;
             const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
             sphere.position.copy(point);
-            this.sceneManager.scene.add(sphere);
+            this.wallGroup.add(sphere);
+            this.endSphere?.removeFromParent();
         }
         if (!this.isPlaced && !this.isEditDone) {
+            console.log('Placing Wall');
             const point = intersects[0].point;
-            console.log(this.mesh);
             const geometry = new BufferGeometry();
             geometry.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
             this.mesh.geometry = geometry;
@@ -53796,10 +53802,35 @@ class Wall extends twoDElement {
             this.mesh.visible = true;
             this.isPlaced = true;
             this.isMoving = true;
-            // Create a sphere to mark the starting point of the wall
             const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
             sphere.position.copy(point);
-            this.sceneManager.scene.add(sphere);
+            this.wallGroup.add(sphere);
+            // Moving Sphere, should be removed after edit done
+            this.endSphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
+            this.endSphere.position.copy(point);
+            this.wallGroup.add(this.endSphere);
+            if (!this.mesh2)
+                return;
+            this.mesh2.position.copy(point);
+            this.mesh2.visible = true;
+            if (!this.normalVector)
+                return;
+            const vectorGeometry = new BufferGeometry();
+            vectorGeometry.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
+            this.normalVector.geometry = vectorGeometry;
+            const vectorPosition = vectorGeometry.getAttribute('position');
+            vectorPosition.setXYZ(0, point.x, 0, point.z);
+            vectorPosition.setXYZ(1, point.x + 10, 0, point.z);
+            const pointX = new Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
+            const center = new Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
+            // const pointY = new THREE.Vector3(point.x, 0, point.z);
+            // create sphere at pointX and center
+            const sphereX = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
+            sphereX.position.copy(pointX);
+            this.wallGroup.add(sphereX);
+            const sphereCenter = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
+            sphereCenter.position.copy(center);
+            this.wallGroup.add(sphereCenter);
         }
     }
     onPointerMove(event) {
@@ -53819,7 +53850,33 @@ class Wall extends twoDElement {
             const position = geometry.getAttribute('position');
             position.setXYZ(1, point.x, 0, point.z);
             position.needsUpdate = true;
+            if (!this.endSphere)
+                return;
+            this.endSphere.position.copy(point);
+            const vectorGeometry = this.normalVector?.geometry;
+            const vectorPosition = vectorGeometry.getAttribute('position');
+            const pointX = new Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
+            const center = new Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
+            const pointY = new Vector3(point.x, 0, point.z);
+            const angle = this.getAngle(pointX, pointY, center);
+            console.log('Angle Rad: ', angle);
+            console.log('Angle Deg: ', MathUtils.radToDeg(angle));
         }
+    }
+    onKeyDown(event) {
+        if (event.key === 'Escape') {
+            this.isPlaced = true;
+            this.isMoving = true;
+            this.isEditDone = true;
+            this.mesh?.removeFromParent();
+            this.wallGroup.removeFromParent();
+        }
+    }
+    getAngle(v1, v2, center) {
+        const v1_ = v1.clone().sub(center).normalize();
+        const v2_ = v2.clone().sub(center).normalize();
+        const angle = v1_.angleTo(v2_);
+        return angle;
     }
 }
 
@@ -56393,6 +56450,7 @@ class ThreeScene {
         });
         this._virtualFloor = new Mesh(geometry, material);
         this._virtualFloor.rotation.x = Math.PI / 2;
+        this._virtualFloor.position.y = -0.1;
         this.scene.add(this._virtualFloor);
     }
     get virtualFloor() {
@@ -56446,6 +56504,9 @@ class FloorControls {
         domElement.addEventListener('mousemove', () => {
             element.onPointerMove(event);
         });
+        window.onkeydown = (event) => {
+            element.onKeyDown(event);
+        };
     }
 }
 
@@ -56469,6 +56530,7 @@ class twoDify {
             this.floorControls.setActiveElement(wall);
         }
     }
+    // TODO: After creation done, remove the active element and event listeners
     selectElement(type) {
         this.activeElement = type;
         console.log('selectElement', this.activeElement);
