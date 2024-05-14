@@ -21,4 +21,3 @@ but what about other workflow?
 with 2Dify as a start, we can aim to create layers on top of 2Dify to support multiple use cases
 
 ### Why I'm doing it?
-I was rejected by a lot of AEC firms
