@@ -53982,7 +53982,6 @@ class Wall extends twoDElement {
         if (!this.mesh || intersects.length <= 0)
             return;
         if (this.isPlaced && this.isMoving) {
-            console.log('Editing Wall');
             const point = intersects[0].point;
             const geometry = this.mesh.geometry;
             const position = geometry.getAttribute('position');
@@ -53994,6 +53993,7 @@ class Wall extends twoDElement {
             sphere.position.copy(point);
             this.wallGroup.add(sphere);
             this.endSphere?.removeFromParent();
+            this.clearHelperControls();
         }
         if (!this.isPlaced && !this.isEditDone) {
             console.log('Placing Wall');
@@ -54075,6 +54075,9 @@ class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
+    }
+    clearHelperControls() {
+        this.normalVector?.removeFromParent();
     }
 }
 

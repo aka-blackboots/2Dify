@@ -63,7 +63,6 @@ export class Wall extends twoDElement {
         if (!this.mesh || intersects.length <= 0) return;
 
         if (this.isPlaced && this.isMoving) {
-            console.log('Editing Wall');
             const point = intersects[0].point;
             const geometry = this.mesh.geometry as THREE.BufferGeometry;
             const position = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -81,6 +80,8 @@ export class Wall extends twoDElement {
             this.wallGroup.add(sphere);
 
             this.endSphere?.removeFromParent();
+
+            this.clearHelperControls();
         }
 
         if (!this.isPlaced && !this.isEditDone) {
@@ -187,5 +188,9 @@ export class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
+    }
+
+    private clearHelperControls() {
+        this.normalVector?.removeFromParent();
     }
 }

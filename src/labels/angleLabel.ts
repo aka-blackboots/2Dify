@@ -112,4 +112,6 @@ export class AngleLabel extends Label{
     const angle = floorMath.angleBetween(v1, v2, center);
     return angle;
   }
+
+  
 }
