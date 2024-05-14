@@ -53741,6 +53741,210 @@ class twoDElement {
     }
 }
 
+class CSS2DObject extends Object3D {
+
+	constructor( element = document.createElement( 'div' ) ) {
+
+		super();
+
+		this.isCSS2DObject = true;
+
+		this.element = element;
+
+		this.element.style.position = 'absolute';
+		this.element.style.userSelect = 'none';
+
+		this.element.setAttribute( 'draggable', false );
+
+		this.center = new Vector2( 0.5, 0.5 ); // ( 0, 0 ) is the lower left; ( 1, 1 ) is the top right
+
+		this.addEventListener( 'removed', function () {
+
+			this.traverse( function ( object ) {
+
+				if ( object.element instanceof Element && object.element.parentNode !== null ) {
+
+					object.element.parentNode.removeChild( object.element );
+
+				}
+
+			} );
+
+		} );
+
+	}
+
+	copy( source, recursive ) {
+
+		super.copy( source, recursive );
+
+		this.element = source.element.cloneNode( true );
+
+		this.center = source.center;
+
+		return this;
+
+	}
+
+}
+
+//
+
+new Vector3();
+new Matrix4();
+new Matrix4();
+new Vector3();
+new Vector3();
+
+class Label {
+    constructor(scene) {
+        this.label = {};
+        this.scene = scene;
+    }
+    createLabel(text, type = 'generic') {
+        // css3 label
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.style.position = 'absolute';
+        label.style.width = '100px';
+        label.style.height = '100px';
+        label.innerHTML = text;
+        label.style.top = '0';
+        label.style.left = '0';
+        label.style.color = 'white';
+        label.style.backgroundColor = 'black';
+        const labelObject = new CSS2DObject(label);
+        labelObject.position.set(0, 0, 0);
+        this.scene.add(labelObject);
+        this.label[text] = {
+            label: labelObject,
+            type: type
+        };
+        return labelObject;
+    }
+    updateLabelPosition(text, position) {
+        if (this.label[text]) {
+            this.label[text].label.position.copy(position);
+        }
+    }
+}
+
+const floorMath = {
+    sub: (v1, v2) => {
+        const sub = new Vector3();
+        sub.x = v1.x - v2.x;
+        sub.y = v1.y - v2.y;
+        sub.z = v1.z - v2.z;
+        return sub;
+    },
+    magnitude: (v1) => {
+        const mag = Math.sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
+        return mag;
+    },
+    dot: (v1, v2) => {
+        const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+        return dot;
+    },
+    angleBetween: (v1, v2, center = new Vector3()) => {
+        const v1C1 = floorMath.sub(v1, center);
+        const v2C1 = floorMath.sub(v2, center);
+        const v1V2 = floorMath.dot(v1C1, v2C1);
+        const magV1 = floorMath.magnitude(v1C1);
+        const magV2 = floorMath.magnitude(v2C1);
+        const angle = Math.acos(v1V2 / (magV1 * magV2));
+        return angle;
+    },
+};
+
+class AngleLabel extends Label {
+    get angleElement() {
+        return this._angleElement;
+    }
+    set angleElement(value) {
+        this._angleElement = value;
+    }
+    constructor(scene) {
+        super(scene);
+        this._angleElement = null;
+        this.rightAngle = null;
+    }
+    generateAngle(center) {
+        const curve = new EllipseCurve(center.x, center.z, 1, 1, 2, 2 * Math.PI, false, 0);
+        const points = curve.getPoints(50);
+        const geometry22 = new BufferGeometry().setFromPoints(points);
+        const material = new LineBasicMaterial({ color: 0xff0000 });
+        const ellipse = new Line(geometry22, material);
+        ellipse.rotateX(Math.PI / 2);
+        this.scene.add(ellipse);
+        ellipse.visible = false;
+        this.angleElement = ellipse;
+    }
+    updateAngle(v1, v2, center) {
+        if (!this._angleElement)
+            return;
+        this._angleElement.visible = true;
+        if (this.rightAngle) {
+            this.rightAngle.removeFromParent();
+            this.rightAngle = null;
+        }
+        const angle = this.getAngle(v1, v2, center);
+        if (v2.z > center.z) {
+            // Clockwise
+            const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
+            if (angleInDeg === '90.00') {
+                this._angleElement.visible = false;
+                this.createRightAngle(center, true);
+            }
+            else {
+                const elip = this.angleElement;
+                const curve = new EllipseCurve(center.x, center.z, 1, 1, angle, 2 * Math.PI, true, 0);
+                const points = curve.getPoints(50);
+                const geometry = new BufferGeometry().setFromPoints(points);
+                elip.geometry = geometry;
+            }
+        }
+        else {
+            // Anti-clockwise
+            const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
+            if (angleInDeg === '90.00') {
+                this._angleElement.visible = false;
+                this.createRightAngle(center, false);
+            }
+            else {
+                const elip = this.angleElement;
+                const curve = new EllipseCurve(center.x, center.z, 1, 1, -angle, 2 * Math.PI, false, 0);
+                const points = curve.getPoints(50);
+                const geometry = new BufferGeometry().setFromPoints(points);
+                elip.geometry = geometry;
+            }
+        }
+    }
+    createRightAngle(center, clockwise = true) {
+        let zFactor = 0;
+        if (clockwise) {
+            zFactor = 1;
+        }
+        else {
+            zFactor = -1;
+        }
+        console.log(`Z Factor: ${zFactor}`);
+        const points = [
+            new Vector3(center.x, center.y, center.z + zFactor),
+            new Vector3(center.x + 1, center.y, center.z + zFactor),
+            new Vector3(center.x + 1, center.y, center.z)
+        ];
+        const geometry = new BufferGeometry().setFromPoints(points);
+        const material = new LineBasicMaterial({ color: 0xff0000 });
+        const line = new Line(geometry, material);
+        this.scene.add(line);
+        this.rightAngle = line;
+    }
+    getAngle(v1, v2, center) {
+        const angle = floorMath.angleBetween(v1, v2, center);
+        return angle;
+    }
+}
+
 class Wall extends twoDElement {
     constructor(sceneManager) {
         super(sceneManager);
@@ -53763,6 +53967,7 @@ class Wall extends twoDElement {
         this.sceneManager.scene.add(this.mesh2);
         this.normalVector = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x4d4d4d }));
         this.sceneManager.scene.add(this.normalVector);
+        this.angleLabel = new AngleLabel(this.sceneManager.scene);
         return this;
     }
     onPointerDown(event) {
@@ -53831,6 +54036,7 @@ class Wall extends twoDElement {
             const sphereCenter = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
             sphereCenter.position.copy(center);
             this.wallGroup.add(sphereCenter);
+            this.angleLabel?.generateAngle(center);
         }
     }
     onPointerMove(event) {
@@ -53858,9 +54064,7 @@ class Wall extends twoDElement {
             const pointX = new Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
             const center = new Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
             const pointY = new Vector3(point.x, 0, point.z);
-            const angle = this.getAngle(pointX, pointY, center);
-            console.log('Angle Rad: ', angle);
-            console.log('Angle Deg: ', MathUtils.radToDeg(angle));
+            this.angleLabel?.updateAngle(pointX, pointY, center);
         }
     }
     onKeyDown(event) {
@@ -53871,12 +54075,6 @@ class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
-    }
-    getAngle(v1, v2, center) {
-        const v1_ = v1.clone().sub(center).normalize();
-        const v2_ = v2.clone().sub(center).normalize();
-        const angle = v1_.angleTo(v2_);
-        return angle;
     }
 }
 

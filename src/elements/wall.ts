@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { twoDElement } from './twoDElement';
 import { ThreeScene } from '../three/scene';
-import { floorMath } from '../floorMath';
+import { AngleLabel } from '../labels/angleLabel';
 export class Wall extends twoDElement {
     // private width: number = 0.5;
     // private length: number = 5;
@@ -17,6 +17,8 @@ export class Wall extends twoDElement {
 
     private endSphere: THREE.Mesh | undefined;
     
+    private angleLabel: AngleLabel | undefined;
+
     constructor(sceneManager: ThreeScene) {
         super(sceneManager);
         this.sceneManager = sceneManager;
@@ -43,6 +45,8 @@ export class Wall extends twoDElement {
             new THREE.LineBasicMaterial({ color: 0x4d4d4d })
         );
         this.sceneManager.scene.add(this.normalVector);
+        
+        this.angleLabel = new AngleLabel(this.sceneManager.scene);
 
         return this;
     }
@@ -138,6 +142,7 @@ export class Wall extends twoDElement {
             sphereCenter.position.copy(center);
             this.wallGroup.add(sphereCenter);
             
+            this.angleLabel?.generateAngle(center);
         }
     }
 
@@ -170,10 +175,7 @@ export class Wall extends twoDElement {
             const pointX = new THREE.Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
             const center = new THREE.Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
             const pointY = new THREE.Vector3(point.x, 0, point.z);
-
-            const angle = this.getAngle(pointX, pointY, center);
-            console.log('Angle Rad: ', angle);
-            console.log('Angle Deg: ', THREE.MathUtils.radToDeg(angle));
+            this.angleLabel?.updateAngle(pointX, pointY, center);
         }
     }
 
@@ -185,10 +187,5 @@ export class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
-    }
-
-    private getAngle(v1: THREE.Vector3, v2: THREE.Vector3, center: THREE.Vector3) {
-        const denominator = floorMath.
-        return angle;
     }
 }
