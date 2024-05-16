@@ -53869,30 +53869,35 @@ class AngleLabel extends Label {
         this.rightAngle = null;
     }
     generateAngle(center) {
+        if (this.angleElement)
+            return;
         const curve = new EllipseCurve(center.x, center.z, 1, 1, 2, 2 * Math.PI, false, 0);
         const points = curve.getPoints(50);
         const geometry22 = new BufferGeometry().setFromPoints(points);
         const material = new LineBasicMaterial({ color: 0xff0000 });
         const ellipse = new Line(geometry22, material);
         ellipse.rotateX(Math.PI / 2);
-        this.scene.add(ellipse);
+        // TODO: How to manage this intuitively?
         ellipse.visible = false;
         this.angleElement = ellipse;
+        this.scene.add(this.angleElement);
     }
     updateAngle(v1, v2, center) {
-        if (!this._angleElement)
+        if (!this.angleElement)
             return;
-        this._angleElement.visible = true;
+        this.angleElement.visible = true;
         if (this.rightAngle) {
             this.rightAngle.removeFromParent();
             this.rightAngle = null;
         }
         const angle = this.getAngle(v1, v2, center);
+        console.log(`V2.z: ${v2.z}`);
+        console.log(`Center.z: ${center.z}`);
         if (v2.z > center.z) {
             // Clockwise
             const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
             if (angleInDeg === '90.00') {
-                this._angleElement.visible = false;
+                this.angleElement.visible = false;
                 this.createRightAngle(center, true);
             }
             else {
@@ -53907,7 +53912,7 @@ class AngleLabel extends Label {
             // Anti-clockwise
             const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
             if (angleInDeg === '90.00') {
-                this._angleElement.visible = false;
+                this.angleElement.visible = false;
                 this.createRightAngle(center, false);
             }
             else {
@@ -53943,6 +53948,74 @@ class AngleLabel extends Label {
         const angle = floorMath.angleBetween(v1, v2, center);
         return angle;
     }
+    removeFromParent() {
+        if (this.angleElement) {
+            this.scene.remove(this.angleElement);
+            this.angleElement = null;
+        }
+        if (this.rightAngle) {
+            this.scene.remove(this.rightAngle);
+            this.rightAngle = null;
+        }
+    }
+}
+
+class FloorHelper {
+    constructor(scene, element, center) {
+        this.center = center;
+        this.helperGroup = new Group();
+        this.scene = scene;
+        this.createFloorHelper(element);
+    }
+    createFloorHelper(element) {
+        switch (element) {
+            case 'Wall':
+                this.createWallHelper();
+                break;
+        }
+    }
+    createWallHelper() {
+        this.helperVector = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x4d4d4d }));
+        this.helperAngleLabel = new AngleLabel(this.scene);
+        this.helperEndSphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0x00ff00 }));
+        this.helperGroup.add(this.helperVector);
+        this.helperGroup.add(this.helperEndSphere);
+        this.scene.add(this.helperGroup);
+        this.generateHelperData();
+    }
+    generateHelperData() {
+        if (!this.helperVector)
+            return;
+        const vectorGeometry = new BufferGeometry();
+        vectorGeometry.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
+        this.helperVector.geometry = vectorGeometry;
+        const vectorPosition = vectorGeometry.getAttribute('position');
+        vectorPosition.setXYZ(0, this.center.x, 0, this.center.z);
+        vectorPosition.setXYZ(1, this.center.x + 10, 0, this.center.z);
+        if (!this.helperEndSphere)
+            return;
+        const pointX = new Vector3(vectorPosition.getX(1), vectorPosition.getY(1), vectorPosition.getZ(1));
+        this.helperEndSphere.position.copy(pointX);
+        if (!this.helperAngleLabel)
+            return;
+        this.helperAngleLabel.generateAngle(this.center);
+    }
+    updateHelper(vectorY) {
+        if (!this.helperVector)
+            return;
+        const vectorGeometry = this.helperVector.geometry;
+        const vectorPosition = vectorGeometry.getAttribute('position');
+        const helperVectorEnd = new Vector3(vectorPosition.getX(1), vectorPosition.getY(1), vectorPosition.getZ(1));
+        if (!this.helperAngleLabel)
+            return;
+        this.helperAngleLabel.updateAngle(helperVectorEnd, vectorY, this.center);
+    }
+    removeHelper() {
+        this.scene.remove(this.helperGroup);
+        if (this.helperAngleLabel) {
+            this.helperAngleLabel.removeFromParent();
+        }
+    }
 }
 
 class Wall extends twoDElement {
@@ -53951,6 +54024,7 @@ class Wall extends twoDElement {
         this.isPlaced = false;
         this.isMoving = false;
         this.isEditDone = false;
+        // private mesh2: THREE.Mesh | undefined;
         this.wallGroup = new Group();
         this.sceneManager = sceneManager;
     }
@@ -53959,15 +54033,12 @@ class Wall extends twoDElement {
         this.wallGroup.add(this.mesh);
         this.sceneManager.scene.add(this.wallGroup);
         // Expirement new wall creation
-        const pGeom = new PlaneGeometry(0.5, 0.5, 32);
-        const pMat = new MeshBasicMaterial({ color: 0x4d4d4d, side: DoubleSide });
-        this.mesh2 = new Mesh(pGeom, pMat);
-        this.mesh2.rotateX(Math.PI / 2);
-        this.mesh2.visible = false;
-        this.sceneManager.scene.add(this.mesh2);
-        this.normalVector = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x4d4d4d }));
-        this.sceneManager.scene.add(this.normalVector);
-        this.angleLabel = new AngleLabel(this.sceneManager.scene);
+        // const pGeom = new THREE.PlaneGeometry( 0.5, 0.5, 32 );
+        // const pMat = new THREE.MeshBasicMaterial( {color: 0x4d4d4d, side: THREE.DoubleSide} );
+        // this.mesh2 = new THREE.Mesh( pGeom, pMat );
+        // this.mesh2.rotateX(Math.PI / 2);
+        // this.mesh2.visible = false;
+        // this.sceneManager.scene.add(this.mesh2);
         return this;
     }
     onPointerDown(event) {
@@ -53993,7 +54064,7 @@ class Wall extends twoDElement {
             sphere.position.copy(point);
             this.wallGroup.add(sphere);
             this.endSphere?.removeFromParent();
-            this.clearHelperControls();
+            this.floorHelper?.removeHelper();
         }
         if (!this.isPlaced && !this.isEditDone) {
             console.log('Placing Wall');
@@ -54014,29 +54085,10 @@ class Wall extends twoDElement {
             this.endSphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
             this.endSphere.position.copy(point);
             this.wallGroup.add(this.endSphere);
-            if (!this.mesh2)
-                return;
-            this.mesh2.position.copy(point);
-            this.mesh2.visible = true;
-            if (!this.normalVector)
-                return;
-            const vectorGeometry = new BufferGeometry();
-            vectorGeometry.setAttribute('position', new BufferAttribute(new Float32Array(6), 3));
-            this.normalVector.geometry = vectorGeometry;
-            const vectorPosition = vectorGeometry.getAttribute('position');
-            vectorPosition.setXYZ(0, point.x, 0, point.z);
-            vectorPosition.setXYZ(1, point.x + 10, 0, point.z);
-            const pointX = new Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
-            const center = new Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
-            // const pointY = new THREE.Vector3(point.x, 0, point.z);
-            // create sphere at pointX and center
-            const sphereX = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
-            sphereX.position.copy(pointX);
-            this.wallGroup.add(sphereX);
-            const sphereCenter = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
-            sphereCenter.position.copy(center);
-            this.wallGroup.add(sphereCenter);
-            this.angleLabel?.generateAngle(center);
+            // if (!this.mesh2) return;
+            // this.mesh2.position.copy(point);
+            // this.mesh2.visible = true;
+            this.floorHelper = new FloorHelper(this.sceneManager.scene, 'Wall', point);
         }
     }
     onPointerMove(event) {
@@ -54059,12 +54111,9 @@ class Wall extends twoDElement {
             if (!this.endSphere)
                 return;
             this.endSphere.position.copy(point);
-            const vectorGeometry = this.normalVector?.geometry;
-            const vectorPosition = vectorGeometry.getAttribute('position');
-            const pointX = new Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
-            const center = new Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
-            const pointY = new Vector3(point.x, 0, point.z);
-            this.angleLabel?.updateAngle(pointX, pointY, center);
+            if (!this.floorHelper)
+                return;
+            this.floorHelper.updateHelper(point);
         }
     }
     onKeyDown(event) {
@@ -54075,9 +54124,6 @@ class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
-    }
-    clearHelperControls() {
-        this.normalVector?.removeFromParent();
     }
 }
 

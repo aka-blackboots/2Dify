@@ -19,6 +19,8 @@ export class AngleLabel extends Label{
   }
 
   generateAngle(center: THREE.Vector3) {
+    if (this.angleElement) return;
+    
     const curve = new THREE.EllipseCurve(
       center.x,  center.z,
       1, 1,
@@ -31,14 +33,15 @@ export class AngleLabel extends Label{
     const material = new THREE.LineBasicMaterial( { color: 0xff0000 } );
     const ellipse = new THREE.Line( geometry22, material );
     ellipse.rotateX(Math.PI / 2);
-    this.scene.add(ellipse);
+    // TODO: How to manage this intuitively?
     ellipse.visible = false;
     this.angleElement = ellipse;
+    this.scene.add(this.angleElement);
   }
 
   updateAngle(v1: THREE.Vector3, v2: THREE.Vector3, center: THREE.Vector3) {
-    if (!this._angleElement) return;
-    this._angleElement.visible = true;
+    if (!this.angleElement) return;
+    this.angleElement.visible = true;
     
     if (this.rightAngle) {
       this.rightAngle.removeFromParent();
@@ -47,11 +50,14 @@ export class AngleLabel extends Label{
 
     const angle = this.getAngle(v1, v2, center);
     
+    console.log(`V2.z: ${v2.z}`)
+    console.log(`Center.z: ${center.z}`)
+    
     if (v2.z > center.z ) {
       // Clockwise
       const angleInDeg = (THREE.MathUtils.radToDeg(angle)).toFixed(2);
       if (angleInDeg === '90.00') {
-          this._angleElement.visible = false;
+          this.angleElement.visible = false;
           this.createRightAngle(center, true);
       } else {
           const elip = this.angleElement as THREE.Line;
@@ -70,7 +76,7 @@ export class AngleLabel extends Label{
       // Anti-clockwise
       const angleInDeg = (THREE.MathUtils.radToDeg(angle)).toFixed(2);
       if (angleInDeg === '90.00') {
-        this._angleElement.visible = false;
+        this.angleElement.visible = false;
         this.createRightAngle(center, false);
       } else {
         const elip = this.angleElement as THREE.Line;
@@ -113,5 +119,15 @@ export class AngleLabel extends Label{
     return angle;
   }
 
+  removeFromParent() {
+    if (this.angleElement) {
+      this.scene.remove(this.angleElement);
+      this.angleElement = null;
+    }
+    if (this.rightAngle) {
+      this.scene.remove(this.rightAngle);
+      this.rightAngle = null;
+    }
+  }
   
 }

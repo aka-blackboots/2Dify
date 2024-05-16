@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { twoDElement } from './twoDElement';
 import { ThreeScene } from '../three/scene';
-import { AngleLabel } from '../labels/angleLabel';
+import { FloorHelper } from '../primitives/floor-helper';
+
 export class Wall extends twoDElement {
     // private width: number = 0.5;
     // private length: number = 5;
@@ -11,13 +12,11 @@ export class Wall extends twoDElement {
     private isMoving: boolean = false;
     private isEditDone: boolean = false;
 
-    private mesh2: THREE.Mesh | undefined;
+    // private mesh2: THREE.Mesh | undefined;
     private wallGroup: THREE.Group = new THREE.Group();
-    private normalVector: THREE.Line | undefined;
-
     private endSphere: THREE.Mesh | undefined;
-    
-    private angleLabel: AngleLabel | undefined;
+
+    private floorHelper: FloorHelper | undefined;
 
     constructor(sceneManager: ThreeScene) {
         super(sceneManager);
@@ -31,23 +30,13 @@ export class Wall extends twoDElement {
         );
         this.wallGroup.add(this.mesh);
         this.sceneManager.scene.add(this.wallGroup);
-
         // Expirement new wall creation
-        const pGeom = new THREE.PlaneGeometry( 0.5, 0.5, 32 );
-        const pMat = new THREE.MeshBasicMaterial( {color: 0x4d4d4d, side: THREE.DoubleSide} );
-        this.mesh2 = new THREE.Mesh( pGeom, pMat );
-        this.mesh2.rotateX(Math.PI / 2);
-        this.mesh2.visible = false;
-        this.sceneManager.scene.add(this.mesh2);
-
-        this.normalVector = new THREE.Line(
-            new THREE.BufferGeometry(),
-            new THREE.LineBasicMaterial({ color: 0x4d4d4d })
-        );
-        this.sceneManager.scene.add(this.normalVector);
-        
-        this.angleLabel = new AngleLabel(this.sceneManager.scene);
-
+        // const pGeom = new THREE.PlaneGeometry( 0.5, 0.5, 32 );
+        // const pMat = new THREE.MeshBasicMaterial( {color: 0x4d4d4d, side: THREE.DoubleSide} );
+        // this.mesh2 = new THREE.Mesh( pGeom, pMat );
+        // this.mesh2.rotateX(Math.PI / 2);
+        // this.mesh2.visible = false;
+        // this.sceneManager.scene.add(this.mesh2);
         return this;
     }
 
@@ -81,7 +70,7 @@ export class Wall extends twoDElement {
 
             this.endSphere?.removeFromParent();
 
-            this.clearHelperControls();
+            this.floorHelper?.removeHelper();
         }
 
         if (!this.isPlaced && !this.isEditDone) {
@@ -113,37 +102,16 @@ export class Wall extends twoDElement {
             this.endSphere.position.copy(point);
             this.wallGroup.add(this.endSphere);
 
-            if (!this.mesh2) return;
-            this.mesh2.position.copy(point);
-            this.mesh2.visible = true;
+            // if (!this.mesh2) return;
+            // this.mesh2.position.copy(point);
+            // this.mesh2.visible = true;
 
-            if (!this.normalVector) return;
-            const vectorGeometry = new THREE.BufferGeometry();
-            vectorGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-            this.normalVector.geometry = vectorGeometry;
-            const vectorPosition = vectorGeometry.getAttribute('position') as THREE.BufferAttribute;
-            vectorPosition.setXYZ(0, point.x, 0, point.z);
-            vectorPosition.setXYZ(1, point.x + 10, 0, point.z);
-
-            const pointX = new THREE.Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
-            const center = new THREE.Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
-            // const pointY = new THREE.Vector3(point.x, 0, point.z);
-            // create sphere at pointX and center
-            const sphereX = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xc4c4c4 })
+            this.floorHelper = new FloorHelper(
+                this.sceneManager.scene, 
+                'Wall', 
+                point
             );
-            sphereX.position.copy(pointX);
-            this.wallGroup.add(sphereX);
-
-            const sphereCenter = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xc4c4c4 })
-            );
-            sphereCenter.position.copy(center);
-            this.wallGroup.add(sphereCenter);
             
-            this.angleLabel?.generateAngle(center);
         }
     }
 
@@ -170,13 +138,8 @@ export class Wall extends twoDElement {
             if (!this.endSphere) return;
             this.endSphere.position.copy(point);
 
-            const vectorGeometry = this.normalVector?.geometry as THREE.BufferGeometry;
-            const vectorPosition = vectorGeometry.getAttribute('position') as THREE.BufferAttribute;
-
-            const pointX = new THREE.Vector3(vectorPosition.getX(1), 0, vectorPosition.getZ(1));
-            const center = new THREE.Vector3(vectorPosition.getX(0), 0, vectorPosition.getZ(0));
-            const pointY = new THREE.Vector3(point.x, 0, point.z);
-            this.angleLabel?.updateAngle(pointX, pointY, center);
+            if (!this.floorHelper) return;
+            this.floorHelper.updateHelper(point);
         }
     }
 
@@ -188,9 +151,5 @@ export class Wall extends twoDElement {
             this.mesh?.removeFromParent();
             this.wallGroup.removeFromParent();
         }
-    }
-
-    private clearHelperControls() {
-        this.normalVector?.removeFromParent();
     }
 }
