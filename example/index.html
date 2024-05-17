@@ -19,6 +19,13 @@
     createWall.addEventListener('click', () => {
         const wall = dify.setActiveElement('Wall');
     });
+
+    document.addEventListener('keypress', (e) => {
+        if (e.key === 'w') {
+            const floorElements = dify.floorElements;
+            console.log(floorElements);
+        }
+    });
 </script>
 </body>
 </html>

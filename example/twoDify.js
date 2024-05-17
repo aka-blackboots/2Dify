@@ -53732,12 +53732,149 @@ var THREE$1 = /*#__PURE__*/Object.freeze({
 	sRGBEncoding: sRGBEncoding
 });
 
+class LiteEvent {
+    constructor() {
+        this.handlers = [];
+    }
+    on(handler) {
+        this.handlers.push(handler);
+    }
+    off(handler) {
+        this.handlers = this.handlers.filter(h => h !== handler);
+    }
+    trigger(data) {
+        this.handlers.slice(0).forEach(h => h(data));
+    }
+    expose() {
+        return this;
+    }
+    dispose() {
+        this.handlers = [];
+    }
+}
+
+// Unique ID creation requires a high quality random # generator. In the browser we therefore
+// require the crypto API and do not support built-in fallback to lower quality random number
+// generators (like Math.random()).
+let getRandomValues;
+const rnds8 = new Uint8Array(16);
+function rng() {
+  // lazy load so that environments that need to polyfill have a chance to do so
+  if (!getRandomValues) {
+    // getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
+    getRandomValues = typeof crypto !== 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto);
+
+    if (!getRandomValues) {
+      throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+    }
+  }
+
+  return getRandomValues(rnds8);
+}
+
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+
+const byteToHex = [];
+
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 0x100).toString(16).slice(1));
+}
+
+function unsafeStringify(arr, offset = 0) {
+  // Note: Be careful editing this code!  It's been tuned for performance
+  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
+  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
+}
+
+const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
+var native = {
+  randomUUID
+};
+
+function v4(options, buf, offset) {
+  if (native.randomUUID && !buf && !options) {
+    return native.randomUUID();
+  }
+
+  options = options || {};
+  const rnds = options.random || (options.rng || rng)(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+
+  rnds[6] = rnds[6] & 0x0f | 0x40;
+  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
+
+  if (buf) {
+    offset = offset || 0;
+
+    for (let i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+
+    return buf;
+  }
+
+  return unsafeStringify(rnds);
+}
+
 class twoDElement {
-    constructor(sceneManager) {
+    constructor(sceneManager, floorElements) {
+        this.onRaycastHover = new LiteEvent();
+        this.onRaycastClick = new LiteEvent();
+        this.onCreated = new LiteEvent();
         this.sceneManager = sceneManager;
+        this.floorElements = floorElements;
+        window.addEventListener('mousemove', (ev) => this.onPointerMove(ev));
+        window.addEventListener('mousedown', (ev) => this.onPointerDown(ev));
+        window.addEventListener('keypress', (ev) => this.onKeyDown(ev));
+        this.id = v4();
     }
     deleteElement() {
         this.sceneManager.scene.remove(this);
+    }
+    checkHoverIntersection(mouseEvent) {
+        const x = mouseEvent.offsetX;
+        const y = mouseEvent.offsetY;
+        const mouse = new Vector2();
+        mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
+        const raycaster = this.sceneManager.raycaster;
+        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        if (!this.floorElements.length)
+            return;
+        const twoDElements = [];
+        this.floorElements.forEach((element) => {
+            if (!element.mesh)
+                return;
+            twoDElements.push(element.mesh);
+        });
+        const intersects = raycaster.intersectObjects(twoDElements);
+        if (!intersects.length)
+            return;
+        // add sphere
+        // const sphere = new THREE.Mesh(
+        //   new THREE.SphereGeometry(0.1),
+        //   new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        // );
+        // sphere.position.copy(intersects[0].point);
+        // this.sceneManager.scene.add(sphere);
+    }
+    checkIntersection(point) {
+        console.log('Checking intersection');
+        console.log(point);
+    }
+    // addElement(mouseEvent: MouseEvent) {
+    // }
+    removeEvents() {
+        window.removeEventListener('mousedown', (ev) => this.checkHoverIntersection(ev));
+        window.removeEventListener('mousemove', (ev) => this.checkHoverIntersection(ev));
+    }
+    dispose() {
+        this.removeEvents();
+        this.onCreated.dispose();
+        this.onRaycastClick.dispose();
+        this.onRaycastHover.dispose();
     }
 }
 
@@ -53863,10 +54000,17 @@ class AngleLabel extends Label {
     set angleElement(value) {
         this._angleElement = value;
     }
+    get currentAngle() {
+        return this._currentAngle;
+    }
+    set currentAngle(value) {
+        this._currentAngle = value;
+    }
     constructor(scene) {
         super(scene);
         this._angleElement = null;
         this.rightAngle = null;
+        this._currentAngle = 0;
     }
     generateAngle(center) {
         if (this.angleElement)
@@ -53891,8 +54035,7 @@ class AngleLabel extends Label {
             this.rightAngle = null;
         }
         const angle = this.getAngle(v1, v2, center);
-        console.log(`V2.z: ${v2.z}`);
-        console.log(`Center.z: ${center.z}`);
+        this.currentAngle = angle;
         if (v2.z > center.z) {
             // Clockwise
             const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
@@ -54018,28 +54161,63 @@ class FloorHelper {
     }
 }
 
+// import { FloorControls } from '../three/floor-controls';
+// Every Mesh is a line - line is like something which controls everything
+// Every Extended Element has its own mesh type, e.g. wall and table looks different, so to repsent them we need to have different mesh types
+// but in the lowest topolocigal sense they are all lines
+// users see meshes but for the code they are all lines
 class Wall extends twoDElement {
-    constructor(sceneManager) {
-        super(sceneManager);
+    constructor(sceneManager, floorElements) {
+        super(sceneManager, floorElements);
+        // private width: number = 0.5;
+        // private length: number = 5;
+        // private height: number = 10;
         this.isPlaced = false;
         this.isMoving = false;
         this.isEditDone = false;
-        // private mesh2: THREE.Mesh | undefined;
-        this.wallGroup = new Group();
+        this.meshGroup = new Group();
+        this.type = 'Wall';
         this.sceneManager = sceneManager;
+        this.onRaycastHover.on((point) => {
+            console.log('Hovering on Wall');
+            console.log(point);
+        });
+        this.createWall();
+    }
+    getQuadrant() {
+        const helperEndSphere = this.floorHelper?.helperEndSphere;
+        if (helperEndSphere && this.endSphere) {
+            if (this.endSphere?.position.z > helperEndSphere.position.z) {
+                return 'SOUTH';
+            }
+            else {
+                return 'NORTH';
+            }
+        }
     }
     createWall() {
         this.mesh = new Line(new BufferGeometry(), new LineBasicMaterial({ color: 0x0000ff }));
-        this.wallGroup.add(this.mesh);
-        this.sceneManager.scene.add(this.wallGroup);
+        this.mesh.userData = {
+            floorElementId: this.id,
+        };
+        this.meshGroup.add(this.mesh);
+        this.sceneManager.scene.add(this.meshGroup);
         // Expirement new wall creation
-        // const pGeom = new THREE.PlaneGeometry( 0.5, 0.5, 32 );
-        // const pMat = new THREE.MeshBasicMaterial( {color: 0x4d4d4d, side: THREE.DoubleSide} );
-        // this.mesh2 = new THREE.Mesh( pGeom, pMat );
-        // this.mesh2.rotateX(Math.PI / 2);
-        // this.mesh2.visible = false;
-        // this.sceneManager.scene.add(this.mesh2);
-        return this;
+        const wallGeom = new BoxGeometry(0.5, 0.5, 0.5);
+        const wallMat = new MeshToonMaterial({
+            color: 0xC2A282,
+            transparent: true,
+            opacity: 0.7
+        });
+        this.wallMesh = new Mesh(wallGeom, wallMat);
+        this.sceneManager.scene.add(this.wallMesh);
+        this.wallMesh.visible = false;
+        // Wall Edge
+        const wallEdgeGeom = new EdgesGeometry(wallGeom);
+        const wallEdgeMat = new LineBasicMaterial({ color: 0x000000 });
+        this.wallEdge = new LineSegments(wallEdgeGeom, wallEdgeMat);
+        this.sceneManager.scene.add(this.wallEdge);
+        this.wallEdge.visible = false;
     }
     onPointerDown(event) {
         const x = event.clientX;
@@ -54062,9 +54240,11 @@ class Wall extends twoDElement {
             this.isMoving = false;
             const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
             sphere.position.copy(point);
-            this.wallGroup.add(sphere);
+            this.meshGroup.add(sphere);
+            this.mesh.geometry.computeBoundingSphere();
             this.endSphere?.removeFromParent();
             this.floorHelper?.removeHelper();
+            this.onCreated.trigger(this);
         }
         if (!this.isPlaced && !this.isEditDone) {
             console.log('Placing Wall');
@@ -54080,18 +54260,23 @@ class Wall extends twoDElement {
             this.isMoving = true;
             const sphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xff0000 }));
             sphere.position.copy(point);
-            this.wallGroup.add(sphere);
+            this.meshGroup.add(sphere);
             // Moving Sphere, should be removed after edit done
             this.endSphere = new Mesh(new SphereGeometry(0.1), new MeshBasicMaterial({ color: 0xc4c4c4 }));
             this.endSphere.position.copy(point);
-            this.wallGroup.add(this.endSphere);
+            this.meshGroup.add(this.endSphere);
             // if (!this.mesh2) return;
             // this.mesh2.position.copy(point);
             // this.mesh2.visible = true;
             this.floorHelper = new FloorHelper(this.sceneManager.scene, 'Wall', point);
+            if (!this.wallMesh)
+                return;
+            this.wallMesh.position.copy(point);
+            this.wallMesh.visible = true;
         }
     }
     onPointerMove(event) {
+        this.checkHoverIntersection(event);
         const x = event.clientX;
         const y = event.clientY;
         const mouse = new Vector2();
@@ -54114,6 +54299,34 @@ class Wall extends twoDElement {
             if (!this.floorHelper)
                 return;
             this.floorHelper.updateHelper(point);
+            if (!this.wallMesh)
+                return;
+            const angle = this.floorHelper.helperAngleLabel?.currentAngle;
+            // INCREASE WALL LENGTH
+            const wallStart = new Vector3(this.mesh.geometry.getAttribute('position').getX(0), 0, this.mesh.geometry.getAttribute('position').getZ(0));
+            const wallLength = wallStart.distanceTo(point);
+            const wallGeom = new BoxGeometry(wallLength, 0.5, 0.5);
+            this.wallMesh.geometry = wallGeom;
+            // OFFSET
+            this.wallMesh.position.x = (wallStart.x + point.x) / 2;
+            this.wallMesh.position.z = (wallStart.z + point.z) / 2;
+            if (!this.wallEdge)
+                return;
+            const wallEdgeGeom = new EdgesGeometry(wallGeom);
+            this.wallEdge.geometry.dispose();
+            this.wallEdge.geometry.copy(wallEdgeGeom);
+            this.wallEdge.position.copy(this.wallMesh.position);
+            // ROTATION - OK
+            if (angle) {
+                if (this.getQuadrant() === 'SOUTH') {
+                    this.wallMesh.rotation.y = -angle;
+                }
+                else {
+                    this.wallMesh.rotation.y = angle;
+                }
+            }
+            this.wallEdge.visible = true;
+            this.wallEdge.rotation.y = this.wallMesh.rotation.y;
         }
     }
     onKeyDown(event) {
@@ -54122,8 +54335,13 @@ class Wall extends twoDElement {
             this.isMoving = true;
             this.isEditDone = true;
             this.mesh?.removeFromParent();
-            this.wallGroup.removeFromParent();
+            this.meshGroup.removeFromParent();
         }
+    }
+    dispose() {
+        this.mesh?.removeFromParent();
+        this.meshGroup.removeFromParent();
+        this.floorHelper?.removeHelper();
     }
 }
 
@@ -56679,10 +56897,14 @@ class ThreeScene {
             alpha: true
         });
         this._raycaster = new Raycaster();
+        this.onRaycast = new LiteEvent();
         this.clock = new Clock();
         this._virtualFloor = new Mesh();
         this.container = container;
         CameraControls.install({ THREE: THREE$1 });
+        this.raycaster.params.Line.threshold = 0.001;
+        this.raycaster.params.Points.threshold = 0.001;
+        this.raycaster.params.Mesh.threshold = 0.001;
     }
     get raycaster() {
         return this._raycaster;
@@ -56713,6 +56935,9 @@ class ThreeScene {
         this.setupLights();
         this.grid = new GridManager(this.scene);
         this._raycaster = new Raycaster();
+        window.addEventListener('mousedown', (event) => {
+            this.castRay(event);
+        });
         this.setupVirtualFloor();
         this.animate();
     }
@@ -56734,26 +56959,17 @@ class ThreeScene {
     get gridManager() {
         return this.grid;
     }
-}
-
-class FloorControls {
-    constructor(sceneManager) {
-        this.sceneManager = sceneManager;
-    }
-    setActiveElement(element) {
-        this.setupEvents(element);
-    }
-    setupEvents(element) {
-        const domElement = this.sceneManager.renderer.domElement;
-        domElement.addEventListener('mousedown', () => {
-            element.onPointerDown(event);
-        });
-        domElement.addEventListener('mousemove', () => {
-            element.onPointerMove(event);
-        });
-        window.onkeydown = (event) => {
-            element.onKeyDown(event);
-        };
+    castRay(event) {
+        const x = event.clientX;
+        const y = event.clientY;
+        const mouse = new Vector2();
+        mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.renderer.domElement.clientHeight) * 2 + 1;
+        this._raycaster.setFromCamera(mouse, this.camera);
+        const intersects = this._raycaster.intersectObjects(this.scene.children);
+        if (intersects.length > 0) {
+            this.onRaycast.trigger(intersects[0].point);
+        }
     }
 }
 
@@ -56765,7 +56981,6 @@ class twoDify {
         console.log('twoDify constructor');
         this.sceneManager = new ThreeScene(container);
         this.sceneManager.setupThree();
-        this.floorControls = new FloorControls(this.sceneManager);
     }
     setupEvents() {
         console.log('setupEvents');
@@ -56773,20 +56988,47 @@ class twoDify {
     setActiveElement(type) {
         console.log('Active Element - ', type);
         if (type === 'Wall') {
-            const wall = new Wall(this.sceneManager).createWall();
-            this.floorControls.setActiveElement(wall);
+            const wall = new Wall(this.sceneManager, this.floorElements);
+            // This needs to be pushed after the editing is done
+            wall.onCreated.on((wall) => {
+                const floorElement = {
+                    type: wall.type,
+                    mesh: wall.mesh,
+                    id: wall.id,
+                    element: wall
+                };
+                this.floorElements.push(floorElement);
+            });
+            // delete later
+            // const cube = new THREE.Mesh(
+            //     new THREE.BoxGeometry(1, 1, 1),
+            //     new THREE.MeshLambertMaterial({ color: 0x00ff00 })
+            // );
+            // this.sceneManager.scene.add(cube);
+            // window.addEventListener('mousemove', (mouseEvent) => {
+            //     const x = mouseEvent.offsetX;
+            //     const y = mouseEvent.offsetY;
+            //     const mouse = new THREE.Vector2();
+            //     mouse.x = (x / window.innerWidth) * 2 - 1;
+            //     mouse.y = -(y / window.innerHeight) * 2 + 1;
+            //     const raycaster = this.sceneManager.raycaster;
+            //     raycaster.setFromCamera(mouse, this.sceneManager.camera);
+            //     const intersects = raycaster.intersectObjects([cube]);
+            //     if (!intersects.length) return;
+            //     // add sphere
+            //     const sphere = new THREE.Mesh(
+            //       new THREE.SphereGeometry(0.1),
+            //       new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            //     );
+            //     sphere.position.copy(intersects[0].point);
+            //     this.sceneManager.scene.add(sphere);
+            // });
         }
     }
     // TODO: After creation done, remove the active element and event listeners
     selectElement(type) {
         this.activeElement = type;
         console.log('selectElement', this.activeElement);
-        switch (type) {
-            case 'Wall':
-                const wall = new Wall(this.sceneManager.scene).createWall();
-                this.floorElements.push(wall);
-                break;
-        }
     }
     // createSimpleWall() {
     //     const wall = new Wall();

@@ -5,6 +5,7 @@ import { floorMath } from '../floorMath';
 export class AngleLabel extends Label{
   private _angleElement: THREE.Line | null = null;
   private rightAngle: THREE.Line | null = null;
+  private _currentAngle: number = 0; 
 
   get angleElement() {
     return this._angleElement;
@@ -12,6 +13,14 @@ export class AngleLabel extends Label{
 
   set angleElement(value) {
     this._angleElement = value;
+  }
+
+  get currentAngle() {
+    return this._currentAngle;
+  }
+
+  set currentAngle(value) {
+    this._currentAngle = value;
   }
 
   constructor(scene: THREE.Scene) {
@@ -49,10 +58,8 @@ export class AngleLabel extends Label{
     }
 
     const angle = this.getAngle(v1, v2, center);
-    
-    console.log(`V2.z: ${v2.z}`)
-    console.log(`Center.z: ${center.z}`)
-    
+    this.currentAngle = angle;
+
     if (v2.z > center.z ) {
       // Clockwise
       const angleInDeg = (THREE.MathUtils.radToDeg(angle)).toFixed(2);

@@ -2,6 +2,7 @@ import CameraControls from 'camera-controls';
 import * as THREE from 'three';
 import { twoDCamera } from './camera';
 import { GridManager } from './grid-manager';
+import { LiteEvent } from '../primitives/events';
 
 export class ThreeScene {
     scene: any;
@@ -11,7 +12,10 @@ export class ThreeScene {
         alpha: true
     });
     private controls: any;
+
     private _raycaster: THREE.Raycaster = new THREE.Raycaster();
+    public onRaycast: LiteEvent<any> = new LiteEvent();
+
     private container: HTMLElement;
     private grid: any;
 
@@ -21,6 +25,10 @@ export class ThreeScene {
     constructor(container: HTMLElement) {
         this.container = container;
         CameraControls.install( { THREE: THREE } );
+
+        this.raycaster.params.Line.threshold = 0.001;
+        this.raycaster.params.Points.threshold = 0.001;
+        this.raycaster.params.Mesh.threshold = 0.001;
     }
 
     get raycaster() {
@@ -54,7 +62,12 @@ export class ThreeScene {
         this.controls = new CameraControls( this.camera, this.renderer.domElement );
         this.setupLights();
         this.grid = new GridManager(this.scene);
+
         this._raycaster = new THREE.Raycaster();
+        window.addEventListener('mousedown', (event) => {
+            this.castRay(event);
+        });
+
         this.setupVirtualFloor();
         this.animate();
     }
@@ -80,5 +93,18 @@ export class ThreeScene {
 
     get gridManager() {
         return this.grid;
+    }
+
+    castRay(event: MouseEvent) {
+        const x = event.clientX;
+        const y = event.clientY;
+        const mouse = new THREE.Vector2();
+        mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.renderer.domElement.clientHeight) * 2 + 1;
+        this._raycaster.setFromCamera(mouse, this.camera);
+        const intersects = this._raycaster.intersectObjects(this.scene.children);
+        if (intersects.length > 0) {
+            this.onRaycast.trigger(intersects[0].point);
+        }
     }
 }

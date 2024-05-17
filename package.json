@@ -25,10 +25,12 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "camera-controls": "^2.8.3",
     "rollup": "^4.9.6",
-    "three": "^0.161.0"
+    "three": "^0.161.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/three": "^0.164.0",
+    "@types/uuid": "^9.0.8",
     "dat.gui": "^0.7.9",
     "typescript": "^5.4.5"
   }

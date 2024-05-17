@@ -7,9 +7,9 @@ type FloorElement = 'Wall' | 'Door' | 'Window' | 'Chair' | 'Table' | 'Bed' | 'So
 export class FloorHelper{
   private scene: THREE.Scene;
   private helperGroup: THREE.Group = new THREE.Group();
-  private helperVector: THREE.Mesh | THREE.Line | undefined;
-  private helperEndSphere: THREE.Mesh | undefined;
-  private helperAngleLabel: AngleLabel | undefined;
+  helperVector: THREE.Mesh | THREE.Line | undefined;
+  helperEndSphere: THREE.Mesh | undefined;
+  public helperAngleLabel: AngleLabel | undefined;
   constructor(scene: THREE.Scene, element: FloorElement, private center: THREE.Vector3) {
     this.scene = scene;
     this.createFloorHelper(element);
