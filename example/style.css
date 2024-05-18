@@ -6,6 +6,9 @@
 html, body {
     overflow: hidden;
 }
+body {
+    margin: 0px;
+}
 #three-container{
     position: fixed;
     top: 0;

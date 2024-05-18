@@ -6,7 +6,7 @@ import { LiteEvent } from '../primitives/events';
 
 export class ThreeScene {
     scene: any;
-    public camera: any;
+    public camera: twoDCamera | undefined;
     public renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true
@@ -26,7 +26,7 @@ export class ThreeScene {
         this.container = container;
         CameraControls.install( { THREE: THREE } );
 
-        this.raycaster.params.Line.threshold = 0.001;
+        this.raycaster.params.Line.threshold = 0.1;
         this.raycaster.params.Points.threshold = 0.001;
         this.raycaster.params.Mesh.threshold = 0.001;
     }
@@ -55,17 +55,24 @@ export class ThreeScene {
 
     setupThree() {
         this.scene = new THREE.Scene();
-        this.camera = new twoDCamera(this.container, this.scene).createCamera();
+        this.camera = new twoDCamera(this.container, this.scene)
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0xffffff, 1);
         this.container.appendChild(this.renderer.domElement);
-        this.controls = new CameraControls( this.camera, this.renderer.domElement );
+        
+        const activeCamera = this.camera.createCamera();
+        this.controls = new CameraControls( activeCamera, this.renderer.domElement );
         this.setupLights();
         this.grid = new GridManager(this.scene);
 
         this._raycaster = new THREE.Raycaster();
         window.addEventListener('mousedown', (event) => {
             this.castRay(event);
+        });
+
+        window.addEventListener( 'resize', () => {
+            this.camera?.resize();
+            this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         });
 
         this.setupVirtualFloor();
@@ -87,7 +94,7 @@ export class ThreeScene {
 
     animate() {
         this.controls.update(this.clock.getDelta());
-        this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera?.camera!);
         requestAnimationFrame(() => this.animate());
     }
 
@@ -101,7 +108,7 @@ export class ThreeScene {
         const mouse = new THREE.Vector2();
         mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
         mouse.y = -(y / this.renderer.domElement.clientHeight) * 2 + 1;
-        this._raycaster.setFromCamera(mouse, this.camera);
+        this._raycaster.setFromCamera(mouse, this.camera?.camera!);
         const intersects = this._raycaster.intersectObjects(this.scene.children);
         if (intersects.length > 0) {
             this.onRaycast.trigger(intersects[0].point);

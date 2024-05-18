@@ -48,7 +48,7 @@ export abstract class twoDElement {
       mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
       mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
       const raycaster = this.sceneManager.raycaster;
-      raycaster.setFromCamera(mouse, this.sceneManager.camera);
+      raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera!);
 
       if (!this.floorElements.length) return;
 
@@ -60,13 +60,7 @@ export abstract class twoDElement {
       const intersects = raycaster.intersectObjects(twoDElements);
       if (!intersects.length) return;
 
-      // add sphere
-      // const sphere = new THREE.Mesh(
-      //   new THREE.SphereGeometry(0.1),
-      //   new THREE.MeshBasicMaterial({ color: 0xff0000 })
-      // );
-      // sphere.position.copy(intersects[0].point);
-      // this.sceneManager.scene.add(sphere);
+      return intersects[0].point;
     }
 
     checkIntersection(point: THREE.Vector3) {

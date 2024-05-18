@@ -7,5 +7,6 @@ export interface IFloorElement {
   id: string;
   type: FloorElement;
   mesh: THREE.Mesh | THREE.Line | undefined;
-  element: twoDElement;
+  element?: twoDElement;
+  virtualMesh?: THREE.Mesh | THREE.Line | undefined;
 }

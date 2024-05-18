@@ -20,7 +20,7 @@ export class Wall extends twoDElement {
 
     meshGroup: THREE.Group = new THREE.Group();
     private mesh: THREE.Mesh | THREE.Line | undefined;
-    private wallMesh: THREE.Mesh | undefined;
+    public wallMesh: THREE.Mesh | undefined;
     private wallEdge: THREE.LineSegments | undefined;
     private endSphere: THREE.Mesh | undefined;
 
@@ -89,7 +89,7 @@ export class Wall extends twoDElement {
         mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
         mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
         const raycaster = this.sceneManager.raycaster
-        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera!);
         const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
         if (!this.mesh || intersects.length <= 0) return;
 
@@ -164,7 +164,15 @@ export class Wall extends twoDElement {
     }
 
     onPointerMove(event: any) {
-        this.checkHoverIntersection(event);
+        // const intersection = this.checkHoverIntersection(event);
+        // if (intersection) {
+        //     const sphere = new THREE.Mesh(
+        //         new THREE.SphereGeometry(0.1),
+        //         new THREE.MeshBasicMaterial({ color: 0xff00ff })
+        //     );
+        //     sphere.position.copy(intersection);
+        //     this.sceneManager.scene.add(sphere);
+        // }
 
         const x = event.clientX;
         const y = event.clientY;
@@ -175,7 +183,7 @@ export class Wall extends twoDElement {
         if (!this.mesh) return;
         
         const raycaster = this.sceneManager.raycaster;
-        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera!);
         const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
 
         if (intersects.length > 0 && this.isMoving) {

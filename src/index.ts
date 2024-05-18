@@ -3,16 +3,41 @@ import * as types from './elements/base-types';
 import { ThreeScene } from './three/scene';
 import * as THREE from 'three';
 import { IFloorElement } from './elements/base-types';
+import { Snapper } from './primitives/snapper';
 
 export default class twoDify {
     private floorElements:IFloorElement[] = [];
     private activeElement: any;
     private sceneManager: ThreeScene;
+    snapper: Snapper;
 
     constructor(container: HTMLElement) {
         console.log('twoDify constructor');
         this.sceneManager = new ThreeScene(container);
         this.sceneManager.setupThree();
+
+        // // draw line
+        // const points = [];
+        // points.push(new THREE.Vector3(-10, 0, 0));
+        // points.push(new THREE.Vector3(0, 10, 0));
+        // points.push(new THREE.Vector3(10, 0, 0));
+
+        // const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        // const material = new THREE.LineBasicMaterial({color: 0x0000ff});
+        // const line = new THREE.Line(geometry, material);
+        // this.sceneManager.scene.add(line);
+        // this.floorElements.push({
+        //     type: 'Wall',
+        //     mesh: line,
+        //     id: '1'
+        // });
+
+        this.snapper = new Snapper(
+            container, 
+            this.sceneManager.scene, 
+            this.sceneManager.camera?.camera!, 
+            this.floorElements
+        );
     }
 
     setupEvents() {
@@ -23,13 +48,18 @@ export default class twoDify {
         console.log('Active Element - ', type);
         if(type === 'Wall'){
             const wall = new Wall(this.sceneManager, this.floorElements);
-            // This needs to be pushed after the editing is done
+            this.snapper.onSnapperMove.on((point) => {
+                console.log(`Snapper Move - ${point?.pointType}`);
+                // wall.onPointerMove(point?.point);
+            });
+
             wall.onCreated.on((wall) => {
                 const floorElement: IFloorElement = {
                     type: wall.type,
                     mesh: wall.mesh,
                     id: wall.id,
-                    element: wall
+                    element: wall,
+                    virtualMesh: wall.wallMesh,
                 }
                 this.floorElements.push(floorElement);
             });

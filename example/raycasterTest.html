@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <link rel="icon" type="image/x-icon" href="resources/favicon.ico">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #container {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <title>Document</title>
+</head>
+<body>
+<div class="" id="container"></div>
+<script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
+        "orbitControls": "https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js"
+      }
+    }
+</script>
+<script type="module">
+  import * as THREE from "three";
+  import {OrbitControls} from "orbitControls";
+
+  const container = document.getElementById("container");
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer();
+  renderer.setClearColor(0xffffff);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  container.appendChild(renderer.domElement);
+
+  // const geometry = new THREE.BoxGeometry();
+  // const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+  // const cube = new THREE.Mesh(geometry, material);
+  // scene.add(cube);
+
+  camera.position.z = 15;
+
+  // draw line
+  const points = [];
+  points.push(new THREE.Vector3(-10, 0, 0));
+  points.push(new THREE.Vector3(0, 10, 0));
+  points.push(new THREE.Vector3(10, 0, 0));
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({color: 0x0000ff});
+  const line = new THREE.Line(geometry, material);
+  scene.add(line);
+
+  // orbit controls
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.update();
+
+  // raycaster
+  const raycaster = new THREE.Raycaster();
+  raycaster.params.Line.threshold = 0.1;
+  window.addEventListener('mousemove', (event) => {
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([line]);
+
+    if (intersects.length > 0) {
+      // add sphere
+      const sphereGeometry = new THREE.SphereGeometry(0.1);
+      const sphereMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere.position.copy(intersects[0].point);
+      scene.add(sphere);
+    }
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>

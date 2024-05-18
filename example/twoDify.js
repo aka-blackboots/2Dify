@@ -53840,7 +53840,7 @@ class twoDElement {
         mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
         mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
         const raycaster = this.sceneManager.raycaster;
-        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera);
         if (!this.floorElements.length)
             return;
         const twoDElements = [];
@@ -53852,13 +53852,7 @@ class twoDElement {
         const intersects = raycaster.intersectObjects(twoDElements);
         if (!intersects.length)
             return;
-        // add sphere
-        // const sphere = new THREE.Mesh(
-        //   new THREE.SphereGeometry(0.1),
-        //   new THREE.MeshBasicMaterial({ color: 0xff0000 })
-        // );
-        // sphere.position.copy(intersects[0].point);
-        // this.sceneManager.scene.add(sphere);
+        return intersects[0].point;
     }
     checkIntersection(point) {
         console.log('Checking intersection');
@@ -54226,7 +54220,7 @@ class Wall extends twoDElement {
         mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
         mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
         const raycaster = this.sceneManager.raycaster;
-        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera);
         const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
         if (!this.mesh || intersects.length <= 0)
             return;
@@ -54276,7 +54270,15 @@ class Wall extends twoDElement {
         }
     }
     onPointerMove(event) {
-        this.checkHoverIntersection(event);
+        // const intersection = this.checkHoverIntersection(event);
+        // if (intersection) {
+        //     const sphere = new THREE.Mesh(
+        //         new THREE.SphereGeometry(0.1),
+        //         new THREE.MeshBasicMaterial({ color: 0xff00ff })
+        //     );
+        //     sphere.position.copy(intersection);
+        //     this.sceneManager.scene.add(sphere);
+        // }
         const x = event.clientX;
         const y = event.clientY;
         const mouse = new Vector2();
@@ -54285,7 +54287,7 @@ class Wall extends twoDElement {
         if (!this.mesh)
             return;
         const raycaster = this.sceneManager.raycaster;
-        raycaster.setFromCamera(mouse, this.sceneManager.camera);
+        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera);
         const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
         if (intersects.length > 0 && this.isMoving) {
             const point = intersects[0].point;
@@ -56860,23 +56862,25 @@ class twoDCamera {
         this.container = container;
         this.scene = scene;
     }
+    get camera() {
+        return this._camera;
+    }
     createCamera() {
         const aspect = this.container.clientWidth / this.container.clientHeight;
-        this.camera = new OrthographicCamera(this.frustumSize * aspect / -2, this.frustumSize * aspect / 2, this.frustumSize / 2, this.frustumSize / -2, 0.1, 100);
-        this.scene.add(this.camera);
-        this.camera.position.set(0, 10, 0);
-        window.addEventListener('resize', this.resize);
-        return this.camera;
+        this._camera = new OrthographicCamera(this.frustumSize * aspect / -2, this.frustumSize * aspect / 2, this.frustumSize / 2, this.frustumSize / -2, 0.1, 100);
+        this.scene.add(this._camera);
+        this._camera.position.set(0, 10, 0);
+        return this._camera;
     }
     resize() {
-        if (!this.camera)
+        if (!this._camera)
             return;
         const aspect = window.innerWidth / window.innerHeight;
-        this.camera.left = -this.frustumSize * aspect / 2;
-        this.camera.right = this.frustumSize * aspect / 2;
-        this.camera.top = this.frustumSize / 2;
-        this.camera.bottom = -this.frustumSize / 2;
-        this.camera.updateProjectionMatrix();
+        this._camera.left = -this.frustumSize * aspect / 2;
+        this._camera.right = this.frustumSize * aspect / 2;
+        this._camera.top = this.frustumSize / 2;
+        this._camera.bottom = -this.frustumSize / 2;
+        this._camera.updateProjectionMatrix();
     }
 }
 
@@ -56902,7 +56906,7 @@ class ThreeScene {
         this._virtualFloor = new Mesh();
         this.container = container;
         CameraControls.install({ THREE: THREE$1 });
-        this.raycaster.params.Line.threshold = 0.001;
+        this.raycaster.params.Line.threshold = 0.1;
         this.raycaster.params.Points.threshold = 0.001;
         this.raycaster.params.Mesh.threshold = 0.001;
     }
@@ -56927,16 +56931,21 @@ class ThreeScene {
     }
     setupThree() {
         this.scene = new Scene();
-        this.camera = new twoDCamera(this.container, this.scene).createCamera();
+        this.camera = new twoDCamera(this.container, this.scene);
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0xffffff, 1);
         this.container.appendChild(this.renderer.domElement);
-        this.controls = new CameraControls(this.camera, this.renderer.domElement);
+        const activeCamera = this.camera.createCamera();
+        this.controls = new CameraControls(activeCamera, this.renderer.domElement);
         this.setupLights();
         this.grid = new GridManager(this.scene);
         this._raycaster = new Raycaster();
         window.addEventListener('mousedown', (event) => {
             this.castRay(event);
+        });
+        window.addEventListener('resize', () => {
+            this.camera?.resize();
+            this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         });
         this.setupVirtualFloor();
         this.animate();
@@ -56953,7 +56962,7 @@ class ThreeScene {
     }
     animate() {
         this.controls.update(this.clock.getDelta());
-        this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera?.camera);
         requestAnimationFrame(() => this.animate());
     }
     get gridManager() {
@@ -56965,11 +56974,54 @@ class ThreeScene {
         const mouse = new Vector2();
         mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
         mouse.y = -(y / this.renderer.domElement.clientHeight) * 2 + 1;
-        this._raycaster.setFromCamera(mouse, this.camera);
+        this._raycaster.setFromCamera(mouse, this.camera?.camera);
         const intersects = this._raycaster.intersectObjects(this.scene.children);
         if (intersects.length > 0) {
             this.onRaycast.trigger(intersects[0].point);
         }
+    }
+}
+
+class Snapper {
+    constructor(container, scene, camera, floorElements) {
+        this.raycaster = new Raycaster();
+        this.onSnapperMove = new LiteEvent();
+        this.scene = scene;
+        this.camera = camera;
+        this.container = container;
+        this.floorElements = floorElements;
+        this.setupEvents();
+        console.log(this.scene);
+    }
+    setupEvents() {
+        this.raycaster.params.Line.threshold = 0.1;
+        this.container.addEventListener('mousemove', (event) => {
+            this.snapperMove(event);
+        });
+    }
+    snapperMove(event) {
+        const x = event.offsetX;
+        const y = event.offsetY;
+        const mouse = new Vector2();
+        mouse.x = (x / this.container.clientWidth) * 2 - 1;
+        mouse.y = -(y / this.container.clientHeight) * 2 + 1;
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const floorElements = [];
+        this.floorElements.forEach((element) => {
+            if (!element.mesh)
+                return;
+            floorElements.push(element.mesh);
+        });
+        const intersects = this.raycaster.intersectObjects(floorElements);
+        if (!intersects.length)
+            return;
+        this.onSnapperMove.trigger({
+            point: intersects[0].point,
+            pointType: 'Element'
+        });
+    }
+    updateSnapperDimensions(container) {
+        this.container = container;
     }
 }
 
@@ -56981,6 +57033,21 @@ class twoDify {
         console.log('twoDify constructor');
         this.sceneManager = new ThreeScene(container);
         this.sceneManager.setupThree();
+        // // draw line
+        // const points = [];
+        // points.push(new THREE.Vector3(-10, 0, 0));
+        // points.push(new THREE.Vector3(0, 10, 0));
+        // points.push(new THREE.Vector3(10, 0, 0));
+        // const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        // const material = new THREE.LineBasicMaterial({color: 0x0000ff});
+        // const line = new THREE.Line(geometry, material);
+        // this.sceneManager.scene.add(line);
+        // this.floorElements.push({
+        //     type: 'Wall',
+        //     mesh: line,
+        //     id: '1'
+        // });
+        this.snapper = new Snapper(container, this.sceneManager.scene, this.sceneManager.camera?.camera, this.floorElements);
     }
     setupEvents() {
         console.log('setupEvents');
@@ -56989,13 +57056,17 @@ class twoDify {
         console.log('Active Element - ', type);
         if (type === 'Wall') {
             const wall = new Wall(this.sceneManager, this.floorElements);
-            // This needs to be pushed after the editing is done
+            this.snapper.onSnapperMove.on((point) => {
+                console.log(`Snapper Move - ${point?.pointType}`);
+                // wall.onPointerMove(point?.point);
+            });
             wall.onCreated.on((wall) => {
                 const floorElement = {
                     type: wall.type,
                     mesh: wall.mesh,
                     id: wall.id,
-                    element: wall
+                    element: wall,
+                    virtualMesh: wall.wallMesh,
                 };
                 this.floorElements.push(floorElement);
             });
