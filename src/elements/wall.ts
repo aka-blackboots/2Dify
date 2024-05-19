@@ -4,11 +4,15 @@ import { ThreeScene } from '../three/scene';
 import { FloorHelper } from '../primitives/floor-helper';
 import { FloorElement, IFloorElement } from './base-types';
 // import { FloorControls } from '../three/floor-controls';
+// import { MeshBVHHelper, acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh';
 
 // Every Mesh is a line - line is like something which controls everything
 // Every Extended Element has its own mesh type, e.g. wall and table looks different, so to repsent them we need to have different mesh types
 // but in the lowest topolocigal sense they are all lines
 // users see meshes but for the code they are all lines
+
+// THREE.Mesh.prototype.raycast = acceleratedRaycast;
+// THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 
 export class Wall extends twoDElement {
     // private width: number = 0.5;
@@ -31,13 +35,7 @@ export class Wall extends twoDElement {
     constructor(sceneManager: ThreeScene, floorElements: IFloorElement[]) {
         super(sceneManager, floorElements);
         this.sceneManager = sceneManager;
-
-        this.onRaycastHover.on((point) => {
-            console.log('Hovering on Wall');
-            console.log(point);
-        });
-
-        this.createWall();
+        this.createWallSkeleton();
     }
 
     getQuadrant() {
@@ -52,7 +50,7 @@ export class Wall extends twoDElement {
         }
     }
 
-    createWall() {
+    createWallSkeleton() {
         this.mesh = new THREE.Line(
             new THREE.BufferGeometry(),
             new THREE.LineBasicMaterial({ color: 0x0000ff })
@@ -63,7 +61,7 @@ export class Wall extends twoDElement {
         this.meshGroup.add(this.mesh);
         this.sceneManager.scene.add(this.meshGroup);
 
-        // Expirement new wall creation
+        // Brown Wall
         const wallGeom = new THREE.BoxGeometry(0.5, 0.5, 0.5);
         const wallMat = new THREE.MeshToonMaterial({ 
             color: 0xC2A282,
@@ -82,19 +80,18 @@ export class Wall extends twoDElement {
         this.wallEdge.visible = false;
     }
 
-    onPointerDown(event: MouseEvent) {
-        const x = event.clientX;
-        const y = event.clientY;
-        const mouse = new THREE.Vector2();
-        mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
-        mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
-        const raycaster = this.sceneManager.raycaster
-        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera!);
-        const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
-        if (!this.mesh || intersects.length <= 0) return;
+    setWallCenter(center: THREE.Vector3) {
+        this.wallMesh?.position.copy(center);
+        this.wallEdge?.position.copy(center);
+        this.meshGroup.position.copy(center);
+        this.mesh?.position.copy(center);
+    }
+
+    onPointerDown(choosenPoint: THREE.Vector3) {
+        if (!this.mesh) return;
 
         if (this.isPlaced && this.isMoving) {
-            const point = intersects[0].point;
+            const point = choosenPoint;
             const geometry = this.mesh.geometry as THREE.BufferGeometry;
             const position = geometry.getAttribute('position') as THREE.BufferAttribute;
             position.setXYZ(1, point.x, 0, point.z);
@@ -104,14 +101,14 @@ export class Wall extends twoDElement {
             this.isMoving = false;
 
             const sphere = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0x242425 })
             );
             sphere.position.copy(point);
             this.meshGroup.add(sphere);
 
             this.mesh.geometry.computeBoundingSphere();
-            
+
             this.endSphere?.removeFromParent();
             this.floorHelper?.removeHelper();
 
@@ -120,7 +117,7 @@ export class Wall extends twoDElement {
 
         if (!this.isPlaced && !this.isEditDone) {
             console.log('Placing Wall');
-            const point = intersects[0].point;
+            const point = choosenPoint;
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
             this.mesh.geometry = geometry;
@@ -133,16 +130,16 @@ export class Wall extends twoDElement {
             this.isMoving = true;
 
             const sphere = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0x242425 })
             );
             sphere.position.copy(point);
             this.meshGroup.add(sphere);
 
             // Moving Sphere, should be removed after edit done
             this.endSphere = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xc4c4c4 })
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
             );
             this.endSphere.position.copy(point);
             this.meshGroup.add(this.endSphere);
@@ -163,31 +160,11 @@ export class Wall extends twoDElement {
         }
     }
 
-    onPointerMove(event: any) {
-        // const intersection = this.checkHoverIntersection(event);
-        // if (intersection) {
-        //     const sphere = new THREE.Mesh(
-        //         new THREE.SphereGeometry(0.1),
-        //         new THREE.MeshBasicMaterial({ color: 0xff00ff })
-        //     );
-        //     sphere.position.copy(intersection);
-        //     this.sceneManager.scene.add(sphere);
-        // }
-
-        const x = event.clientX;
-        const y = event.clientY;
-        const mouse = new THREE.Vector2();
-        mouse.x = (x / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
-        mouse.y = -(y / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
-
+    onPointerMove(choosenPoint: THREE.Vector3) {
         if (!this.mesh) return;
-        
-        const raycaster = this.sceneManager.raycaster;
-        raycaster.setFromCamera(mouse, this.sceneManager.camera?.camera!);
-        const intersects = raycaster.intersectObjects([this.sceneManager.virtualFloor]);
 
-        if (intersects.length > 0 && this.isMoving) {
-            const point = intersects[0].point;
+        if (this.isMoving) {
+            const point = choosenPoint;
             const geometry = this.mesh.geometry as THREE.BufferGeometry;
             const position = geometry.getAttribute('position') as THREE.BufferAttribute;
             position.setXYZ(1, point.x, 0, point.z);

@@ -26,6 +26,7 @@
     "camera-controls": "^2.8.3",
     "rollup": "^4.9.6",
     "three": "^0.161.0",
+    "three-mesh-bvh": "^0.7.4",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

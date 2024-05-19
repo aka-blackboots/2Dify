@@ -34,7 +34,7 @@ export default class twoDify {
 
         this.snapper = new Snapper(
             container, 
-            this.sceneManager.scene, 
+            this.sceneManager, 
             this.sceneManager.camera?.camera!, 
             this.floorElements
         );
@@ -49,8 +49,11 @@ export default class twoDify {
         if(type === 'Wall'){
             const wall = new Wall(this.sceneManager, this.floorElements);
             this.snapper.onSnapperMove.on((point) => {
-                console.log(`Snapper Move - ${point?.pointType}`);
-                // wall.onPointerMove(point?.point);
+                wall.onPointerMove(point?.point!);
+            });
+
+            this.snapper.onSnapperDown.on((point) => {
+                wall.onPointerDown(point?.point!);
             });
 
             wall.onCreated.on((wall) => {
@@ -62,6 +65,10 @@ export default class twoDify {
                     virtualMesh: wall.wallMesh,
                 }
                 this.floorElements.push(floorElement);
+
+                // TODO: or maybe a RESET method on snapper
+                // this.snapper.reset();
+                this.snapper.onSnapperMove.dispose();
             });
 
             // delete later

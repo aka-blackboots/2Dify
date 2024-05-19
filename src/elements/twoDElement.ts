@@ -6,14 +6,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 export abstract class twoDElement {
     sceneManager: ThreeScene;
-    abstract onPointerDown(event: any): void;
-    abstract onPointerMove(event: any): void;
+    abstract onPointerDown(event: THREE.Vector3): void;
+    abstract onPointerMove(event: THREE.Vector3): void;
     abstract onKeyDown(event: any): void;
     
-    public onRaycastHover: LiteEvent<any> = new LiteEvent();
-    public onRaycastClick: LiteEvent<any> = new LiteEvent();
-
     public onCreated: LiteEvent<any> = new LiteEvent();
+    public onEditing: LiteEvent<any> = new LiteEvent();
 
     private floorElements: IFloorElement[];
 
@@ -30,8 +28,6 @@ export abstract class twoDElement {
       this.sceneManager = sceneManager;
       this.floorElements = floorElements;
 
-      window.addEventListener('mousemove', (ev) => this.onPointerMove(ev));
-      window.addEventListener('mousedown', (ev) => this.onPointerDown(ev));
       window.addEventListener('keypress', (ev) => this.onKeyDown(ev));
 
       this.id = uuidv4();
@@ -68,19 +64,7 @@ export abstract class twoDElement {
       console.log(point);
     }
 
-    // addElement(mouseEvent: MouseEvent) {
-
-    // }
-
-    removeEvents() {
-      window.removeEventListener('mousedown', (ev) => this.checkHoverIntersection(ev));
-      window.removeEventListener('mousemove', (ev) => this.checkHoverIntersection(ev));
-    }
-
     dispose() {
-      this.removeEvents();
       this.onCreated.dispose();
-      this.onRaycastClick.dispose();
-      this.onRaycastHover.dispose();
     }
 }

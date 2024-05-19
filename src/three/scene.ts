@@ -38,10 +38,10 @@ export class ThreeScene {
     private setupVirtualFloor() {
         const geometry = new THREE.PlaneGeometry(100, 100);
         const material = new THREE.MeshBasicMaterial({
-            color: 0x0000ff, 
+            color: 0xF1F1F4, 
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.1
+            opacity: 0.7
         });
         this._virtualFloor = new THREE.Mesh(geometry, material);
         this._virtualFloor.rotation.x = Math.PI / 2;
