@@ -52376,7 +52376,7 @@ class DirectionalLightHelper extends Object3D {
 
 }
 
-const _vector = /*@__PURE__*/ new Vector3();
+const _vector$d = /*@__PURE__*/ new Vector3();
 const _camera = /*@__PURE__*/ new Camera();
 
 /**
@@ -52618,7 +52618,7 @@ class CameraHelper extends LineSegments {
 
 function setPoint( point, pointMap, geometry, camera, x, y, z ) {
 
-	_vector.set( x, y, z ).unproject( camera );
+	_vector$d.set( x, y, z ).unproject( camera );
 
 	const points = pointMap[ point ];
 
@@ -52628,7 +52628,7 @@ function setPoint( point, pointMap, geometry, camera, x, y, z ) {
 
 		for ( let i = 0, l = points.length; i < l; i ++ ) {
 
-			position.setXYZ( points[ i ], _vector.x, _vector.y, _vector.z );
+			position.setXYZ( points[ i ], _vector$d.x, _vector$d.y, _vector$d.z );
 
 		}
 
@@ -53909,11 +53909,163 @@ class CSS2DObject extends Object3D {
 
 //
 
-new Vector3();
-new Matrix4();
-new Matrix4();
-new Vector3();
-new Vector3();
+const _vector = new Vector3();
+const _viewMatrix = new Matrix4();
+const _viewProjectionMatrix = new Matrix4();
+const _a$1 = new Vector3();
+const _b = new Vector3();
+
+class CSS2DRenderer {
+
+	constructor( parameters = {} ) {
+
+		const _this = this;
+
+		let _width, _height;
+		let _widthHalf, _heightHalf;
+
+		const cache = {
+			objects: new WeakMap()
+		};
+
+		const domElement = parameters.element !== undefined ? parameters.element : document.createElement( 'div' );
+
+		domElement.style.overflow = 'hidden';
+
+		this.domElement = domElement;
+
+		this.getSize = function () {
+
+			return {
+				width: _width,
+				height: _height
+			};
+
+		};
+
+		this.render = function ( scene, camera ) {
+
+			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+			if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
+
+			_viewMatrix.copy( camera.matrixWorldInverse );
+			_viewProjectionMatrix.multiplyMatrices( camera.projectionMatrix, _viewMatrix );
+
+			renderObject( scene, scene, camera );
+			zOrder( scene );
+
+		};
+
+		this.setSize = function ( width, height ) {
+
+			_width = width;
+			_height = height;
+
+			_widthHalf = _width / 2;
+			_heightHalf = _height / 2;
+
+			domElement.style.width = width + 'px';
+			domElement.style.height = height + 'px';
+
+		};
+
+		function renderObject( object, scene, camera ) {
+
+			if ( object.isCSS2DObject ) {
+
+				_vector.setFromMatrixPosition( object.matrixWorld );
+				_vector.applyMatrix4( _viewProjectionMatrix );
+
+				const visible = ( object.visible === true ) && ( _vector.z >= - 1 && _vector.z <= 1 ) && ( object.layers.test( camera.layers ) === true );
+				object.element.style.display = ( visible === true ) ? '' : 'none';
+
+				if ( visible === true ) {
+
+					object.onBeforeRender( _this, scene, camera );
+
+					const element = object.element;
+
+					element.style.transform = 'translate(' + ( - 100 * object.center.x ) + '%,' + ( - 100 * object.center.y ) + '%)' + 'translate(' + ( _vector.x * _widthHalf + _widthHalf ) + 'px,' + ( - _vector.y * _heightHalf + _heightHalf ) + 'px)';
+
+					if ( element.parentNode !== domElement ) {
+
+						domElement.appendChild( element );
+
+					}
+
+					object.onAfterRender( _this, scene, camera );
+
+				}
+
+				const objectData = {
+					distanceToCameraSquared: getDistanceToSquared( camera, object )
+				};
+
+				cache.objects.set( object, objectData );
+
+			}
+
+			for ( let i = 0, l = object.children.length; i < l; i ++ ) {
+
+				renderObject( object.children[ i ], scene, camera );
+
+			}
+
+		}
+
+		function getDistanceToSquared( object1, object2 ) {
+
+			_a$1.setFromMatrixPosition( object1.matrixWorld );
+			_b.setFromMatrixPosition( object2.matrixWorld );
+
+			return _a$1.distanceToSquared( _b );
+
+		}
+
+		function filterAndFlatten( scene ) {
+
+			const result = [];
+
+			scene.traverse( function ( object ) {
+
+				if ( object.isCSS2DObject ) result.push( object );
+
+			} );
+
+			return result;
+
+		}
+
+		function zOrder( scene ) {
+
+			const sorted = filterAndFlatten( scene ).sort( function ( a, b ) {
+
+				if ( a.renderOrder !== b.renderOrder ) {
+
+					return b.renderOrder - a.renderOrder;
+
+				}
+
+				const distanceA = cache.objects.get( a ).distanceToCameraSquared;
+				const distanceB = cache.objects.get( b ).distanceToCameraSquared;
+
+				return distanceA - distanceB;
+
+			} );
+
+			const zMax = sorted.length;
+
+			for ( let i = 0, l = sorted.length; i < l; i ++ ) {
+
+				sorted[ i ].element.style.zIndex = zMax - i;
+
+			}
+
+		}
+
+	}
+
+}
 
 class Label {
     constructor(scene) {
@@ -53925,13 +54077,19 @@ class Label {
         const label = document.createElement('div');
         label.className = 'label';
         label.style.position = 'absolute';
-        label.style.width = '100px';
-        label.style.height = '100px';
+        label.style.width = 'fit-to-content';
+        label.style.height = 'fit-to-content';
         label.innerHTML = text;
         label.style.top = '0';
         label.style.left = '0';
         label.style.color = 'white';
-        label.style.backgroundColor = 'black';
+        label.style.backgroundColor = '#1E6FD9';
+        label.style.opacity = '0.7';
+        label.style.fontSize = '11px';
+        label.style.padding = '2px 6px';
+        label.style.borderRadius = '24px';
+        label.style.fontFamily = 'Arial, sans-serif';
+        label.style.border = 'unset';
         const labelObject = new CSS2DObject(label);
         labelObject.position.set(0, 0, 0);
         this.scene.add(labelObject);
@@ -53993,6 +54151,7 @@ class AngleLabel extends Label {
         this._angleElement = null;
         this.rightAngle = null;
         this._currentAngle = 0;
+        this.labelElement = null;
     }
     generateAngle(center) {
         if (this.angleElement)
@@ -54007,6 +54166,7 @@ class AngleLabel extends Label {
         ellipse.visible = false;
         this.angleElement = ellipse;
         this.scene.add(this.angleElement);
+        this.labelElement = this.createLabel('0°');
     }
     updateAngle(v1, v2, center) {
         if (!this.angleElement)
@@ -54021,6 +54181,10 @@ class AngleLabel extends Label {
         if (v2.z > center.z) {
             // Clockwise
             const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
+            if (this.labelElement) {
+                this.labelElement.element.textContent = `${angleInDeg}°`;
+                this.labelElement.position.set(center.x + 1, 0, center.z + 1);
+            }
             if (angleInDeg === '90.00') {
                 this.angleElement.visible = false;
                 this.createRightAngle(center, true);
@@ -54036,6 +54200,10 @@ class AngleLabel extends Label {
         else {
             // Anti-clockwise
             const angleInDeg = (MathUtils.radToDeg(angle)).toFixed(2);
+            if (this.labelElement) {
+                this.labelElement.element.textContent = `${angleInDeg}°`;
+                this.labelElement.position.set(center.x - 1, 0, center.z - 1);
+            }
             if (angleInDeg === '90.00') {
                 this.angleElement.visible = false;
                 this.createRightAngle(center, false);
@@ -56855,10 +57023,10 @@ class twoDCamera {
 class GridManager {
     constructor(scene) {
         this.scene = scene;
-        const grid = new GridHelper(100, 100);
-        grid.computeLineDistances();
-        grid.material = new LineDashedMaterial({ dashSize: 0.015, gapSize: 0.175, vertexColors: true });
-        this.scene.add(grid);
+        this.grid = new GridHelper(100, 100);
+        this.grid.computeLineDistances();
+        this.grid.material = new LineDashedMaterial({ dashSize: 0.015, gapSize: 0.175, vertexColors: true });
+        this.scene.add(this.grid);
     }
 }
 
@@ -56868,6 +57036,7 @@ class ThreeScene {
             antialias: true,
             alpha: true
         });
+        this.labelRenderer = new CSS2DRenderer();
         this._raycaster = new Raycaster();
         this.onRaycast = new LiteEvent();
         this.clock = new Clock();
@@ -56903,8 +57072,12 @@ class ThreeScene {
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setClearColor(0xffffff, 1);
         this.container.appendChild(this.renderer.domElement);
+        this.labelRenderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.labelRenderer.domElement.style.position = 'absolute';
+        this.labelRenderer.domElement.style.top = '0';
+        this.container.appendChild(this.labelRenderer.domElement);
         const activeCamera = this.camera.createCamera();
-        this.controls = new CameraControls(activeCamera, this.renderer.domElement);
+        this.controls = new CameraControls(activeCamera, this.labelRenderer.domElement);
         this.setupLights();
         this.grid = new GridManager(this.scene);
         this._raycaster = new Raycaster();
@@ -56914,6 +57087,7 @@ class ThreeScene {
         window.addEventListener('resize', () => {
             this.camera?.resize();
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+            this.labelRenderer.setSize(this.container.clientWidth, this.container.clientHeight);
         });
         this.setupVirtualFloor();
         this.animate();
@@ -56931,6 +57105,7 @@ class ThreeScene {
     animate() {
         this.controls.update(this.clock.getDelta());
         this.renderer.render(this.scene, this.camera?.camera);
+        this.labelRenderer.render(this.scene, this.camera?.camera);
         requestAnimationFrame(() => this.animate());
     }
     get gridManager() {
@@ -62692,6 +62867,11 @@ class twoDify {
         const cube = new Mesh(new BoxGeometry(1, 1, 1), new MeshLambertMaterial({ color: 0x00ff00 }));
         this.sceneManager.scene.add(cube);
     }
+    get dotGrid() {
+        if (!this.sceneManager.gridManager)
+            return;
+        return this.sceneManager.gridManager.grid;
+    }
 }
 
-export { VERSION, twoDify as default };
+export { Label, VERSION, twoDify };

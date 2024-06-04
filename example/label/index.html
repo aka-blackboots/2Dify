@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./../style.css">
+    <title>2Dify Demo</title>
+    <style>
+        button {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 10px;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+<div id="three-container"></div>
+<script type="module">
+    import { twoDify, Label } from './../twoDify.js';
+    const container = document.getElementById('three-container');
+    
+    const dify = new twoDify(container);
+    dify.dotGrid.visible = false;
+    
+    const labelM = new Label(dify.sceneManager.scene);
+    labelM.createLabel('70°');
+</script>
+</body>
+</html>
