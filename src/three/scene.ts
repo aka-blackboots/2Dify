@@ -70,6 +70,7 @@ export class ThreeScene {
         
         const activeCamera = this.camera.createCamera();
         this.controls = new CameraControls( activeCamera, this.labelRenderer.domElement );
+        // this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
         this.setupLights();
         this.grid = new GridManager(this.scene);
 
