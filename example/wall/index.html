@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./../style.css">
     <title>2Dify Demo</title>
     <style>
         button {
@@ -20,10 +20,11 @@
 <div id="three-container"></div>
 <button style="position: absolute" id="createWall">Create Wall</button>
 <script type="module">
-    import twoDify from './twoDify.js';
+    import { twoDify } from './../twoDify.js';
     const container = document.getElementById('three-container');
     const dify = new twoDify(container);
-    
+    dify.dotGrid.visible = true;
+
     const createWall = document.getElementById('createWall');
     createWall.addEventListener('click', () => {
         const wall = dify.setActiveElement('Wall');

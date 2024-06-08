@@ -4,8 +4,9 @@ import { ThreeScene } from './three/scene';
 import * as THREE from 'three';
 import { IFloorElement } from './elements/base-types';
 import { Snapper } from './primitives/snapper';
+export * from './labels/label';
 
-export default class twoDify {
+export class twoDify {
     private floorElements:IFloorElement[] = [];
     private activeElement: any;
     private sceneManager: ThreeScene;
@@ -146,6 +147,11 @@ export default class twoDify {
             new THREE.MeshLambertMaterial({ color: 0x00ff00 })
         );
         this.sceneManager.scene.add(cube);
+    }
+
+    get dotGrid() {
+        if (!this.sceneManager.gridManager) return;
+        return this.sceneManager.gridManager.grid;
     }
 }
 

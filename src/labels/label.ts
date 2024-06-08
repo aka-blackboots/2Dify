@@ -20,13 +20,19 @@ export class Label{
     const label = document.createElement('div');
     label.className = 'label';
     label.style.position = 'absolute';
-    label.style.width = '100px';
-    label.style.height = '100px';
+    label.style.width = 'fit-to-content';
+    label.style.height = 'fit-to-content';
     label.innerHTML = text;
     label.style.top = '0';
     label.style.left = '0';
     label.style.color = 'white';
-    label.style.backgroundColor = 'black';
+    label.style.backgroundColor = '#1E6FD9';
+    label.style.opacity = '0.7';
+    label.style.fontSize = '11px';
+    label.style.padding = '2px 6px';
+    label.style.borderRadius = '24px';
+    label.style.fontFamily = 'Arial, sans-serif';
+    label.style.border = 'unset';
 
     const labelObject = new CSS2DObject(label);
     labelObject.position.set(0, 0, 0);
