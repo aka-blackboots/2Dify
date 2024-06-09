@@ -1,0 +1,28 @@
+{
+  "name": "@2dify/editor",
+  "version": "0.0.1",
+  "description": "Robust Editor built on top of @2Dify/graphics to create Floorplans with zero knowledge",
+  "main": "src/index.ts",
+  "directories": {
+    "example": "example"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aka-blackboots/2Dify.git"
+  },
+  "keywords": [
+    "AEC",
+    "BIM",
+    "Floorplans",
+    "Editor"
+  ],
+  "author": "Vishwajeet V. Mane",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aka-blackboots/2Dify/issues"
+  },
+  "homepage": "https://github.com/aka-blackboots/2Dify#readme"
+}
